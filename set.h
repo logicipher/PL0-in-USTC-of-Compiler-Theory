@@ -5,9 +5,13 @@ typedef struct snode
 {
 	int elem;
 	struct snode* next;
-} snode, *symset;
+} snode, *symset;			// elem of head node not used
 
-symset phi, declbegsys, statbegsys, facbegsys, relset;
+symset phi, 														// added by nanahka 17-11-13
+	   blk_first_sys, decl_first_sys, stat_first_sys,
+	   fac_first_sys,
+	   main_blk_follow_sys,
+	   relset;
 
 symset createset(int data, .../* SYM_NULL */);
 void destroyset(symset s);
