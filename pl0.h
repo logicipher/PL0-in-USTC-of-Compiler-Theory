@@ -3,7 +3,7 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NRW        13     // number of reserved words
+#define NRW        14     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
 #define NSYM       11     // maximum number of symbols in array ssym and csym
@@ -16,7 +16,7 @@
 #define MAXLEVEL   32     // maximum depth of nesting block
 #define CXMAX      500    // size of code array
 
-#define MAXSYM     32     // maximum number of symbols
+#define MAXSYM     36     // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -24,6 +24,9 @@
 #define UNCONST_EXPR 1	  // the expression is not constant
 
 #define TABLE_BEGIN 0	  // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
+
+#define MAX_EXIT 20      //the max number of exit  ADDED BY LZP
+#define MAX_RET  20      //max number of return in evert procedure
 
 enum symtype
 {
@@ -60,10 +63,10 @@ enum symtype
 	SYM_VAR,
 	SYM_PROCEDURE,
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
-	//added by lzp
 	SYM_ELSE,
-	SYM_FOR,
-	SYM_RETURN
+	SYM_FOR,                     //added by lzp
+	SYM_RETURN,
+	SYM_EXIT
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype
@@ -138,7 +141,11 @@ char* err_msg[] =
 /* 40 */	"Missing ',' or ')'.",
 /* 41 */	"Array type as parameter forbidden.",
 /* 42 */	"Too few parameters in a procedure.",
-/* 43 */      "'(' expected."
+/* 43 */      "'(' expected.",
+/* 44 */      "there must be a variable in 'for' statement.",
+/* 45 */       "you must return a constant.",
+/* 46 */       "no more exit can be added.",
+/* 47 */       "'else' expected."
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -155,6 +162,10 @@ int  cx;         // index of current instruction to be generated.
 int  level = 0;
 int  tx = 0;
 int  tx_b = 0;	 // index of the beginning of current block in TABLE
+int cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
+int i_exit=0;    //to count the number of exit
+int cx_ret[MAX_RET];      //to mark the code of 'return'
+int i_ret=0;        //to count the number of 'return'
 
 char line[80];
 
@@ -165,14 +176,14 @@ char* word[NRW + 1] =
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return"                  //add by lzp
+	"else","for","return" ,"exit"                 //add by lzp
 };
 
 int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE,SYM_FOR,SYM_RETURN                      //added by lzp
+	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT                    //added by lzp
 };
 
 int ssym[NSYM + 1] =
