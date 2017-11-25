@@ -187,6 +187,29 @@ void getsym(void)
 		sym = SYM_RSQUARE;
 		getch();
 	}
+	else if(ch=='&')
+	{
+		getch();
+		if(ch=='&')
+		{
+			sym=SYM_AND;
+		        getch();
+		}
+	}
+	else if(ch=='|')
+	{
+		getch();
+		if(ch=='|')
+			sym=SYM_OR;
+		else
+			error(48);     //missing a '|'
+		getch();
+	}
+	else if(ch=='!')
+	{
+		sym=SYM_NOT;
+		getch();
+	}
 	else
 	{ // other tokens
 		i = NSYM;
