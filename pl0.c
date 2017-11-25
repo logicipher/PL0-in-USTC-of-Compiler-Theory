@@ -790,7 +790,7 @@ void condition(symset fsys, symset ksys)
 //////////////////////////////////////////////////////////////////////
 void statement(symset fsys, symset ksys)
 {
-	int i, cx1, cx2;
+	int i, cx1, cx2,cx3,cx4;
 	symset set1, set;
 
 	if (sym == SYM_IDENTIFIER)
@@ -1000,8 +1000,15 @@ void statement(symset fsys, symset ksys)
 		}
 		cx1 = cx;
 		gen(JPC, 0, 0);
-		statement(fsys, ksys);																	// modified by nanahka 17-11-13
+		statement(fsys, ksys);	// modified by nanahka 17-11-13
+		cx2=cx;
+		gen(JMP,0,0);
 		code[cx1].a = cx;
+		if(sym!=SYM_ELSE)
+			error(47);      //missing 'else
+		statement(fsys,ksys);
+		code[cx2].a=cx;
+	} //PL0 has been changed to 'else' is necessary,but I will find a way to change it to C_style
 		
 			
 	}
@@ -1059,9 +1066,81 @@ void statement(symset fsys, symset ksys)
 		code[cx2].a = cx;
 	}
 	else if(sym=SYM_FOR)
-	{
+	{//for statement
 		getsym();
 		if(sym!=SYM_LPAREN)
+			error(43);   //missing '('
+		getsym();
+		if((i=position(id))==0)
+			error(11);           //id not declared
+		if(table[i].kind!=ID_VARIABLE)
+			error(44);           //it must be a variable
+		set1=createset(SYM_SEMICOLON,SYM_NULL);
+		set=uniteset_mul(ksys,set1,SYM_IDENTIFIER,0);
+		expression(set1,set);
+		//destroyset(set1);
+		//destoryset(set);
+		if(sym!=SYM_SEMICOLON)
+			error(10);            //';' expected
+		getsym();
+		cx1=cx;
+		condition(set1,set);          //condition
+		destroyset(set);
+		destroyset(set1);
+		cx2=cx;
+		gen(JPC,0,0);
+		cx3=cx;
+		gen(JMP,0,0);
+		if((i=position(id))==0)
+			error(11);           //id not declared
+		if(table[i].kind!=ID_VARIABLE)
+			error(44);           //it must be a variable
+		set1=createset(SYM_RPAREN,SYM_NULL);
+		set=uniteset(ksys,set1,stat_firat_sys,0);
+		cx4=cx;
+		expression(set1,set);        //change cycle var  
+		gen(JMP,0,cx1);
+		code[cx3].a=cx;
+		statement(fsys,ksys);       //body of 'for'
+		gen(JMP,0,cx4);
+		code[cx2].a=cx;
+	}
+	else if(sym==SYM_RETURN)
+	{
+		getsym();
+		set1=createset(SYM_SEMICOLON,SYM_NULL);
+		set=uniteset(ksys,set1,stat_first_sys,SYM_SEMICOLON,0);
+		expression(set1,set);
+		if(sym!=SYM_SEMICOLON)
+			error(26);          //missing ';'
+		gen(OPR,0,OPR_RET);
+		cx_ret[i_ret]=cx;
+		gen(JMP,0,0);
+	}
+	else if(sym==SYM_EXIT)
+	{
+		getsym();
+		if(sym!=SYMLPAREN)
+			error(43);         //'(' is needed
+		getsym();
+		i=position(id);
+		if(table[i].kind!=ID_CONSTANT)
+			error(45);          //'exit' have to return a constant
+		getsym();
+		if(sym!=SYM_LPAREN)
+			error(22);           //missing ')'
+		getsym();
+		if(sym!=SYM_SEMICOLON)
+			error(10);           //missing ';'
+		gen(LIT,0,table[i].value);
+		gen(OPR,0,OPR_RET);
+		if(i_exit=MAX_EXIT)
+			error(46);          //this is the maximum of 'exit'
+		cx_exit[i_exit++]=cx;
+		gen(JMP,0,0);
+	}
+		
+		
 	test(ksys, ksys, 19);																		// modified by nanahka 17-11-20
 } // statement
 
@@ -1074,6 +1153,7 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	int block_tx = tx_b;																// added by nanahka 17-11-20
 	int savedTx, savedDx;																// added by nanahka 17-11-20
 	symset set1, set;
+	int i=0;
 
 	dx = 3;
 	block_dx = dx;
@@ -1256,10 +1336,21 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	gen(INT, 0, block_dx);		// distribute storage for Static Link(<-bp), Dynamic Link, Return Address, and variables
 	//set1 = createset(SYM_SEMICOLON, SYM_END, SYM_NULL);
 	//set = uniteset(fsys, ksys);
-	statement(fsys, ksys);																		// modified by nanahka 17-11-13
+	statement(fsys, ksys);	// modified by nanahka 17-11-13
+	
 	//destroyset(set1);
 	//destroyset(set);
 	gen(OPR, 0, OPR_RET); // return
+	for(cx_ret[i_ret]!=0)
+	{
+		code[cx_ret[i]].a=cx;
+		cx_ret[i++]=0;
+	}
+	i=0;
+	while(cx_exit[i++]!=0)
+	{                                           //all 'exit' gen a instruction to jump to this end
+		code[cx_exit[i-1]]=cx;
+	}
 	test(ksys, ksys, 8); // Follow the statement is an incorrect symbol.						// modified by nanahka 17-11-20
 	listcode(cx0, cx);
 } // block
