@@ -3,7 +3,7 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NRW        14     // number of reserved words
+#define NRW        17     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
 #define NSYM       11     // maximum number of symbols in array ssym and csym
@@ -16,7 +16,7 @@
 #define MAXLEVEL   32     // maximum depth of nesting block
 #define CXMAX      500    // size of code array
 
-#define MAXSYM     36     // maximum number of symbols
+#define MAXSYM     39    // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -62,6 +62,9 @@ enum symtype
 	SYM_CONST,
 	SYM_VAR,
 	SYM_PROCEDURE,
+	SYM_NOT,
+	SYM_OR,
+	SYM_AND,
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
@@ -162,6 +165,11 @@ int  cx;         // index of current instruction to be generated.
 int  level = 0;
 int  tx = 0;
 int  tx_b = 0;	 // index of the beginning of current block in TABLE
+int true_out[4][10]={0};//短路计算，真值链 
+int false_out[4][10]={0};//短路计算，假值链 
+int true_count[4]={0};
+int false_count[4]={0};
+int condition_level=0;
 int cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
 int i_exit=0;    //to count the number of exit
 int cx_ret[MAX_RET];      //to mark the code of 'return'
@@ -183,19 +191,19 @@ int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT                    //added by lzp
+	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT                 //added by lzp
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_AMPERSAND																				// added 17-11-20
+	SYM_AMPERSAND,SYM_NOT,SYM_OR,SYM_AND																			// added 17-11-20
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&'									// added 17-11-20
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&',									// added 17-11-20
 };
 
 #define MAXINS   10																		// added & modified by nanahka 17-11-14
