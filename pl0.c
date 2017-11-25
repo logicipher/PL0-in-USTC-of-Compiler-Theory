@@ -721,7 +721,8 @@ int expression(symset fsys, symset ksys, int CONST_CHECK)
 	destroyset(set);
 	destroyset(set1);
 	return rv;
-} // expressionvoid rel_expr(symset fsys) //condition
+} // expression
+void rel_expr(symset fsys) //condition
 {
 	int relop;
 	symset set;
@@ -772,7 +773,7 @@ int expression(symset fsys, symset ksys, int CONST_CHECK)
 		} // else
 		destroyset(set);
 	} // else
-} // rel_expr , condition
+} // rel_expr 
 
 
 void and_expr(symset fsys)
