@@ -721,7 +721,109 @@ int expression(symset fsys, symset ksys, int CONST_CHECK)
 	destroyset(set);
 	destroyset(set1);
 	return rv;
-} // expression
+} // expressionvoid rel_expr(symset fsys) //condition
+{
+	int relop;
+	symset set;
+
+	/* //2017-0924
+	if (sym == SYM_ODD)
+	{
+		getsym();
+		expression(fsys);
+		gen(OPR, 0, 6);
+	}
+	else
+	*/
+	{
+		set = uniteset(relset, fsys);
+		expression(set);
+		//destroyset(set);
+		if (!inset(sym, relset))
+		{
+			//error(20);//2017-09-24
+		}
+		else //if (inset(sym, relset))
+		{
+			relop = sym;
+			getsym();
+			expression(fsys);
+			switch (relop)
+			{
+			case SYM_EQU:
+				gen(OPR, 0, OPR_EQU);
+				break;
+			case SYM_NEQ:
+				gen(OPR, 0, OPR_NEQ);
+				break;
+			case SYM_LES:
+				gen(OPR, 0, OPR_LES);
+				break;
+			case SYM_GEQ:
+				gen(OPR, 0, OPR_GEQ);
+				break;
+			case SYM_GTR:
+				gen(OPR, 0, OPR_GTR);
+				break;
+			case SYM_LEQ:
+				gen(OPR, 0, OPR_LEQ);
+				break;
+			} // switch
+		} // else
+		destroyset(set);
+	} // else
+} // rel_expr , condition
+
+
+void and_expr(symset fsys)
+{
+	symset set;
+
+	set = uniteset(fsys, createset(SYM_AND, SYM_NULL));
+
+	rel_expr(set);
+	while (sym == SYM_AND)
+	{
+		getsym();
+		rel_expr(set);
+		gen(OPR, 0, OPR_AND);
+
+	} // while
+
+	destroyset(set);
+}
+//////////////////////////////////////////////////////////////////////
+void or_expr(symset fsys)
+{
+	symset set;
+
+	set = uniteset(fsys, createset(SYM_OR, SYM_NULL));
+
+	and_expr(set);
+	while (sym == SYM_OR)
+	{
+		getsym();
+		and_expr(set);
+		gen(OPR, 0, OPR_OR);
+
+	} // while
+	destroyset(set);
+} // or_expr
+///////////////////////////////////////////////////////
+void not_expr(symset fsys)
+{
+  symset set;
+  set=uniteset(fsys,createset(SYM_NOT,SYM_NULL));
+  not_expr(set);
+  while(sym==SYM_NOT)
+{  
+   getsym();
+   and_expr(set);
+   gen(OPR,0,OPR_NOT);
+}
+   destoryset(set);
+}
+  
 
 //////////////////////////////////////////////////////////////////////
 void condition(symset fsys, symset ksys)
@@ -774,18 +876,70 @@ void condition(symset fsys, symset ksys)
 	} // else
 } // condition
 
-/////////////////////////////////////////////////////
-//to excute the key word 'else'
-//void stmt_else(symset fsys,symset ksys)
-//{
-//	if(sym==SYM_ELSE)
-//	{
-//		getsym();
-//		statement(fsys,ksys);
-//	}
-//}//stmt_else
+
+///////////////////////////////////////////////////////////
+void ex_condition(symset fsys)
+{	int relop;
+	if (sym==SYM_NOT)//条件第一个是NOT
+	{ 	getsym();
+		condition(fsys);
+		gen(OPR,0,OPR_NOT);
+		}
+	else{condition(fsys);}
+	if(sym ==SYM_THEN||sym==SYM_SEMICOLON)
+	{false_out[condition_level][false_count[condition_level]++]=cx;
+	gen(JPC,0,0);//条件不成立
+	true_out[condition_level][true_count[condition_level]++]=cx;
+	gen(JMP,0,0);//条件成立
+	return;
+	}
+	while(sym==SYM_AND||sym==SYM_OR||sym==SYM_NOT)
+	{	
+	relop=sym;
+	getsym();
+	switch (relop)
+	{
+	case SYM_OR:
+		true_out[condition_level][true_count[condition_level]++]=cx;
+		gen(JMP,0,0);//如果成立，调到true的出口，等待回填
+		if(sym==SYM_NOT)//or的后面是not
+		{
+		getsym();
+		condition(fsys);
+		gen(OPR,0,OPR_NOT);//布尔值取反
+		}
+		else
+		{condition(fsys);}
+		if(sym==SYM_THEN||sym==SYM_SEMICOLON)
+		{false_out[condition_level][false_count[condition_level]++]=cx;//条件不成立
+		gen(JPC,0,0);
+		true_out[condition_level][true_count[condition_level]++]=cx;//条件成立
+		gen(JMP,0,0);
+		return;
+	}
+	break;
+	case SYM_AND:
+		false_out[condition_level][false_count[condition_level]++]=cx;
+		gen(JMP,0,0);//跳到false出口
+		if(sym==SYM_NOT)//and的后面是not
+		{
+		getsym();
+		condition(fsys);
+		gen(OPR,0,OPR_NOT);//布尔值取反
+		}
+		else
+		{condition(fsys);}
+		if(sym==SYM_THEN||sym==SYM_SEMICOLON)
+		{false_out[condition_level][false_count[condition_level]++]=cx;//条件不成立
+		gen(JPC,0,0);
+		true_out[condition_level][true_count[condition_level]++]=cx;//条件成立
+		gen(JMP,0,0);
+		return;}
 		
-		
+	break;
+	}
+}
+}
 
 //////////////////////////////////////////////////////////////////////
 void statement(symset fsys, symset ksys)
