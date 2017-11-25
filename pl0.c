@@ -1274,7 +1274,7 @@ void statement(symset fsys, symset ksys)
 		if(table[i].kind!=ID_VARIABLE)
 			error(44);           //it must be a variable
 		set1=createset(SYM_RPAREN,SYM_NULL);
-		set=uniteset(ksys,set1,stat_firat_sys,0);
+		set=uniteset_mul(ksys,set1,stat_firat_sys,0);
 		cx4=cx;
 		expression(set1,set);        //change cycle var  
 		gen(JMP,0,cx1);
@@ -1287,7 +1287,7 @@ void statement(symset fsys, symset ksys)
 	{
 		getsym();
 		set1=createset(SYM_SEMICOLON,SYM_NULL);
-		set=uniteset(ksys,set1,stat_first_sys,SYM_SEMICOLON,0);
+		set=uniteset_mul(ksys,set1,stat_first_sys,SYM_SEMICOLON,0);
 		expression(set1,set);
 		if(sym!=SYM_SEMICOLON)
 			error(26);          //missing ';'
