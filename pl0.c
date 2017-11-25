@@ -774,6 +774,16 @@ void condition(symset fsys, symset ksys)
 	} // else
 } // condition
 
+/////////////////////////////////////////////////////
+//to excute the key word 'else'
+void stmt_else(symset fsys,symset ksys)
+{
+	if(sym==SYM_ELSE)
+	{
+		getsym();
+		
+		
+
 //////////////////////////////////////////////////////////////////////
 void statement(symset fsys, symset ksys)
 {
