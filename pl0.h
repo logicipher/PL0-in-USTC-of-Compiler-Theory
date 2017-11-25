@@ -137,7 +137,8 @@ char* err_msg[] =
 /* 39 */	"Too many parameters in a procedure.",	// 39-42 added by nanahka 17-11-20
 /* 40 */	"Missing ',' or ')'.",
 /* 41 */	"Array type as parameter forbidden.",
-/* 42 */	"Too few parameters in a procedure."
+/* 42 */	"Too few parameters in a procedure.",
+/* 43 */      "'(' expected."
 };
 
 //////////////////////////////////////////////////////////////////////
