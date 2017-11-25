@@ -3,7 +3,7 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NRW        10     // number of reserved words
+#define NRW        13     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
 #define NSYM       11     // maximum number of symbols in array ssym and csym
@@ -49,7 +49,7 @@ enum symtype
 	SYM_SEMICOLON,
 	SYM_PERIOD,
 	SYM_BECOMES,
-    SYM_BEGIN,
+        SYM_BEGIN,
 	SYM_END,
 	SYM_IF,
 	SYM_THEN,
@@ -59,7 +59,11 @@ enum symtype
 	SYM_CONST,
 	SYM_VAR,
 	SYM_PROCEDURE,
-	SYM_AMPERSAND				// added by nanahka 17-11-20
+	SYM_AMPERSAND,				// added by nanahka 17-11-20
+	//added by lzp
+	SYM_ELSE,
+	SYM_FOR,
+	SYM_RETURN
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype
@@ -159,13 +163,15 @@ char* word[NRW + 1] =
 {
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
-	"odd", "procedure", "then", "var", "while"
+	"odd", "procedure", "then", "var", "while",
+	"else","for","return"                  //add by lzp
 };
 
 int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
-	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE
+	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
+	SYM_ELSE,SYM_FOR,SYM_RETURN                      //added by lzp
 };
 
 int ssym[NSYM + 1] =
