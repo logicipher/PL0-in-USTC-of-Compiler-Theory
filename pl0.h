@@ -148,7 +148,8 @@ char* err_msg[] =
 /* 44 */      "there must be a variable in 'for' statement.",
 /* 45 */       "you must return a constant.",
 /* 46 */       "no more exit can be added.",
-/* 47 */       "'else' expected."
+/* 47 */       "'else' expected.",
+/* 48 */       "another '|' is expected."
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -184,26 +185,26 @@ char* word[NRW + 1] =
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return" ,"exit"                 //add by lzp
+	"else","for","return" ,"exit"      //,"&&","||”，“！”               //add by lzp
 };
 
 int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT                 //added by lzp
+	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT  //,SYM_AND,SYM_OR,SYM_NOT                //added by lzp
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_AMPERSAND,SYM_NOT,SYM_OR,SYM_AND																			// added 17-11-20
+	SYM_AMPERSAND//,SYM_NOT,SYM_OR,SYM_AND																			// added 17-11-20
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&',									// added 17-11-20
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&'									// added 17-11-20
 };
 
 #define MAXINS   10																		// added & modified by nanahka 17-11-14
