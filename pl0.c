@@ -776,11 +776,14 @@ void condition(symset fsys, symset ksys)
 
 /////////////////////////////////////////////////////
 //to excute the key word 'else'
-void stmt_else(symset fsys,symset ksys)
-{
-	if(sym==SYM_ELSE)
-	{
-		getsym();
+//void stmt_else(symset fsys,symset ksys)
+//{
+//	if(sym==SYM_ELSE)
+//	{
+//		getsym();
+//		statement(fsys,ksys);
+//	}
+//}//stmt_else
 		
 		
 
@@ -999,6 +1002,8 @@ void statement(symset fsys, symset ksys)
 		gen(JPC, 0, 0);
 		statement(fsys, ksys);																	// modified by nanahka 17-11-13
 		code[cx1].a = cx;
+		
+			
 	}
 	else if (sym == SYM_BEGIN)
 	{ // block
@@ -1053,6 +1058,10 @@ void statement(symset fsys, symset ksys)
 		gen(JMP, 0, cx1);
 		code[cx2].a = cx;
 	}
+	else if(sym=SYM_FOR)
+	{
+		getsym();
+		if(sym!=SYM_LPAREN)
 	test(ksys, ksys, 19);																		// modified by nanahka 17-11-20
 } // statement
 
