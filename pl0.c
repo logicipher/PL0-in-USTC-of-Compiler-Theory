@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <malloc.h>
 
 #include "pl0.h"
 #include "set.c"
@@ -56,8 +57,47 @@ void getsym(void)
 	int i, k;
 	char a[MAXIDLEN + 1];
 
-	while (ch == ' '||ch == '\t')
-		getch();
+    // added & modified by nanahka 17-09-21 as labwork_1
+    // an un-recursive method to eliminate repeated comments
+    ////////////////////////////////////////////////
+    // two kinds of comments supported
+    // 1. line comment:     //...
+    // 2. block comment:    /*...*/
+    ////////////////////////////////////////////////
+	do
+    {
+        while (ch == ' '||ch == '\t')
+            getch();
+
+        if (ch == '/')
+        {
+            getch();
+            if (ch == '/')
+            {
+                cc = ll = 0;
+                ch = ' ';
+            }
+            else if (ch == '*')
+            {
+                do
+                {
+                    ch = ' ';
+                    while (ch != '*')
+                        getch();
+                    getch();
+                }
+                while (ch != '/');
+                ch = ' ';
+            }
+            else
+            {
+                sym = SYM_SLASH;
+                return;
+            }
+        }
+    }
+    while (ch == ' ');
+
 
 	if (isalpha(ch))
 	{ // symbol is a reserved word or an identifier.
@@ -103,7 +143,7 @@ void getsym(void)
 		}
 		else
 		{
-			sym = SYM_NULL;       // illegal?
+			error(37); // '=' expected.				// modified by nanhka 17-11-13
 		}
 	}
 	else if (ch == '>')
@@ -137,6 +177,24 @@ void getsym(void)
 			sym = SYM_LES;     // <
 		}
 	}
+	else if(ch=='&')
+	{
+		getch();
+		if(ch=='&')
+		{
+			sym=SYM_AND;
+		        getch();
+		}
+	}
+	else if(ch=='|')
+	{
+		getch();
+		if(ch=='|')
+			sym=SYM_OR;
+		else
+			error(48);     //missing a '|'
+		getch();
+	}
 	else
 	{ // other tokens
 		i = NSYM;
@@ -155,6 +213,22 @@ void getsym(void)
 	}
 } // getsym
 
+//////////////////////////////////////////////////////////////////////
+//
+//			f			l			a
+//			INT			--			numerical constant			// allocate storage in stack
+//			LIT			--			numerical constant			// set a constant on top of the stack
+//			LOD			levelDiff	data address
+//			LODI		levelDiff	--(addr at top of the stack)
+//			STO			levelDiff	target address
+//			STOI		levelDiff	--(addr at top - 1 of the stack, data at top)
+//			CAL			levelDiff	procedure address
+//			JMP			--			procedure address
+//			JPC			--			procedure address			// if stack[top]==0, jump to an address
+//			JND			--			procedure address			// if stack[top]==0, jump without top--
+//			JNDN		--			procedure address			// if stack[top]!=0, jump without top--
+//			OPR			--			type of algebraic/logical instructions
+//
 //////////////////////////////////////////////////////////////////////
 // generates (assembles) an instruction.
 void gen(int x, int y, int z)
@@ -186,11 +260,33 @@ void test(symset s1, symset s2, int n)
 } // test
 
 //////////////////////////////////////////////////////////////////////
-int dx;  // data allocation index
+int dx;  // data allocation index		// accumulated offset in current AR
 
+//////////////////////////////////////////////////////////////////////
+//TABLE: (table[0] for error declaration, correct entries start from table[1])
+//				name		kind			level		address						ptr
+// const		id			enter(kind)		--------value(stored in TABLE)---------	--
+// var			id			enter(kind)		level		dx							--
+// procedure	id			enter(kind)		level		cx(set by block(), line752)	ptr[0] is the number of its parameters
+// array		id			enter(kind)		level		dx ~ dx + ptr[0] - 1		ptr[1..ptr[0]] are volumes
+//																					 of the dimensions
+//*: Since all the entries created within a procedure will be released after the
+//  declaration of the procedure, except for the name of the procedure itself, all
+//  the entries in the table at a special moment are available for the statement
+//  to be analyzed.
+//////////////////////////////////////////////////////////////////////
 // enter object(constant, variable or procedre) into table.
 void enter(int kind)
 {
+	int position(char* id, int tx_beg);
+
+	if (kind == ID_PROCEDURE && position(id, TABLE_BEGIN) ||									// added by nanahka 17-11-20
+		kind != ID_PROCEDURE && position(id, tx_b))
+	{
+		error(31); // Redeclaration of an identifier.
+		return;
+	}
+
 	mask* mk;
 
 	tx++;
@@ -211,22 +307,47 @@ void enter(int kind)
 		mk->level = level;
 		mk->address = dx++;
 		break;
-	case ID_PROCEDURE:
+	case ID_PROCEDURE:					// modified by nanahka 17-11-20
 		mk = (mask*) &table[tx];
 		mk->level = level;
+		mk->ptr = (int*)malloc(sizeof(int));
+		*mk->ptr = 0;
+		break;
+	case ID_ARRAY:						// added by nanahka 17-11-13
+		mk = (mask*) &table[tx];
+		mk->level = level;
+		mk->address = dx;
+		int i = ptr[0], s = ptr[1];
+		while (--i) {s *= ptr[ptr[0]- i + 1];}
+		dx += s;
+		mk->ptr = ptr;
+		ptr = 0;
 		break;
 	} // switch
 } // enter
 
 //////////////////////////////////////////////////////////////////////
 // locates identifier in symbol table.
-int position(char* id)
+// language feature: Check if there is already a same var/const name within
+//   current block, or a procedure name in the whole TABLE. If NOT, return 0.
+//   This feature is to prevent wrong input of ids within compiling process,
+//   and support recursive calling of ancestor procedures.
+//////////////////////////////////////////////////////////////////////
+int position(char* id, int tx_beg)																// modified by nanahka 17-11-20
 {
 	int i;
-	strcpy(table[0].name, id);
 	i = tx + 1;
+	if (tx_beg)
+	{
+		strcpy(table[0].name, table[tx_beg].name);
+	}
+	strcpy(table[tx_beg].name, id);
 	while (strcmp(table[--i].name, id) != 0);
-	return i;
+	if (tx_beg)
+	{
+		strcpy(table[tx_beg].name, table[0].name);
+	}
+	return tx_beg == i ? i - tx_beg : i;
 } // position
 
 //////////////////////////////////////////////////////////////////////
@@ -259,12 +380,63 @@ void constdeclaration()
 } // constdeclaration
 
 //////////////////////////////////////////////////////////////////////
-void vardeclaration(void)
+int expression(symset fsys, symset ksys, int CONST_CHECK);
+void vardeclaration(symset fsys, symset ksys)
 {
-	if (sym == SYM_IDENTIFIER)
+	int con_expr;
+	symset set1, set;
+
+	if (sym == SYM_IDENTIFIER)			// added & modified by nanahka 17-11-14
 	{
-		enter(ID_VARIABLE);
 		getsym();
+		if (sym == SYM_LSQUARE)
+		{ // array declaration
+			char id_t[MAXIDLEN + 1];
+			strcpy(id_t, id);
+			int dim[MAXARYDIM + 1] = {};
+			do
+			{
+				getsym();
+				set = createset(SYM_RSQUARE, SYM_NULL);
+				set1 = uniteset(ksys, set);
+				con_expr = expression(set, set1, CONST_EXPR);
+				destroyset(set);
+				destroyset(set1);
+				if (con_expr <= 0 || con_expr > MAXARYVOL)
+				{
+					error(36); // Volume of a dimension is out of range.
+					break;
+				}
+				if ( (++dim[0]) > MAXARYDIM)
+				{
+					error(35); // There are too many dimensions.
+					--dim[0];
+					break;
+				}
+				dim[dim[0]] = con_expr;
+				if (sym != SYM_RSQUARE)
+				{
+					error(34); // ']' expected.				// if ']' lost, go finding the next '['
+				}
+				else
+				{
+					getsym();
+				}
+			}
+			while (sym == SYM_LSQUARE);
+			if (dim[0])										// modified by nanahka 17-11-13
+			{
+				ptr = (int*)malloc( (dim[0] + 1) * sizeof(int));
+				ptr[0] = dim[0]++;
+				while (--dim[0]) {ptr[dim[0]] = dim[dim[0]];}
+				strcpy(id, id_t);
+				enter(ID_ARRAY);
+			}
+		}
+		else
+		{ // variable declaration
+			enter(ID_VARIABLE);
+		}
 	}
 	else
 	{
@@ -276,7 +448,7 @@ void vardeclaration(void)
 void listcode(int from, int to)
 {
 	int i;
-	
+
 	printf("\n");
 	for (i = from; i < to; i++)
 	{
@@ -286,40 +458,159 @@ void listcode(int from, int to)
 } // listcode
 
 //////////////////////////////////////////////////////////////////////
-void factor(symset fsys)
+void backpatch(int *list)
 {
-	void expression(symset fsys);
-	int i;
-	symset set;
-	
-	test(facbegsys, fsys, 24); // The symbol can not be as the beginning of an expression.
+	int *p = list + 1;
+	while (list[0]--) {code[*p++].a = cx;}
+	free(list);
+}
 
-	while (inset(sym, facbegsys))
+//////////////////////////////////////////////////////////////////////
+void mergelist(int *dst, int *src)
+{
+	int *p = src + 1;
+	while (src[0]--) {dst[++dst[0]] = *p++;}
+	free(src);
+}
+
+//////////////////////////////////////////////////////////////////////
+int factor(symset fsys, symset ksys, int CONST_CHECK)
+{
+	int i, rv = 0;
+	symset set, set1;
+
+	test(fac_first_sys, ksys, 24); // The symbol can not be as the beginning of an expression.
+											 // "factor" is unfamiliar for the user, thus "expression" used.
+	if (inset(sym, fac_first_sys))																// modified by nanahka 17-11-14
 	{
 		if (sym == SYM_IDENTIFIER)
 		{
-			if ((i = position(id)) == 0)
+			if ((i = position(id, TABLE_BEGIN)) == 0)
 			{
 				error(11); // Undeclared identifier.
+				getsym();
 			}
 			else
 			{
-				switch (table[i].kind)
+				switch (table[i].kind)															// modified by nanahka 17-11-14
 				{
 					mask* mk;
 				case ID_CONSTANT:
-					gen(LIT, 0, table[i].value);
+					if (CONST_CHECK)
+					{ // UNCONST_EXPR
+						gen(LIT, 0, table[i].value);
+					}
+					else
+					{ // CONST_EXPR
+						rv = table[i].value;
+					}
 					break;
 				case ID_VARIABLE:
-					mk = (mask*) &table[i];
-					gen(LOD, level - mk->level, mk->address);
+					if (CONST_CHECK)
+					{ // UNCONST_EXPR
+						mk = (mask*) &table[i];
+						gen(LOD, level - mk->level, mk->address);
+					}
+					else
+					{ // CONST_EXPR
+						error(28); // Variables can not be in a const expression.
+					}
 					break;
 				case ID_PROCEDURE:
 					error(21); // Procedure identifier can not be in an expression.
 					break;
+				case ID_ARRAY:																	// added by nanahka 17-11-15
+					if (CONST_CHECK)
+					{ // UNCONST_EXPR
+						mk = (mask*) &table[i];
+						getsym();
+						if (sym != SYM_LSQUARE)
+						{
+							error(38); // '[' expected
+							mk = 0;
+						}
+						else
+						{
+							getsym();
+						}
+						if (mk)
+						{
+							ptr = mk->ptr;
+							int d = *ptr; // d <- dimensions of the array
+							set = createset(SYM_RSQUARE, SYM_NULL);
+							set1 = uniteset(ksys, set);
+							expression(set, set1, UNCONST_EXPR);
+							if (sym != SYM_RSQUARE)
+							{
+								error(34); // ']' expected.
+							}
+							else
+							{
+								getsym();
+							}
+							--d;
+							while (sym == SYM_LSQUARE && d)
+							{
+								getsym(); // take '['
+								gen(LIT, 0, ptr[ptr[0] - d + 1]);
+								gen(OPR, 0, OPR_MUL);
+								expression(set, set1, UNCONST_EXPR);
+								gen(OPR, 0, OPR_ADD);
+								if (sym != SYM_RSQUARE)
+								{
+									error(34); // ']' expected.
+								}
+								else
+								{
+									getsym();
+								}
+								--d;
+							}
+							destroyset(set);
+							destroyset(set1);
+							if (!d)
+							{ // number of subscripts read == array dimensions
+								//gen(LIT, 0, sizeof(int));
+								//gen(OPR, 0, OPR_MUL);
+								gen(LIT, 0, mk->address);
+								gen(OPR, 0, OPR_ADD);
+							}
+							else
+							{ // number of subscripts read < array dimensions
+								error(29); // Too few subscripts.
+								i = 0;
+							}
+						} // if
+						if (!mk)
+						{ // discard the leftover parts of the subscripts
+							test(ksys, ksys, 19); // Incorrect symbol.
+						}
+						else																	// added by nanahka 17-11-15
+						{
+							if (sym == SYM_LSQUARE)
+							{
+								test(ksys, ksys, 30); // Too many subscripts.
+							}
+							gen(LODI, level - mk->level, 0);
+						}
+					}
+					else
+					{ // CONST_EXPR
+						error(28); // Variables can not be in a const expression.
+					}
+					break;
 				} // switch
-			}
-			getsym();
+				if (table[i].kind != ID_ARRAY)
+				{
+					getsym();
+					if (sym == SYM_LSQUARE)
+					{
+						error(27); // Applying the subscripts operator on non-array.
+						getsym();
+					}
+					test(ksys, ksys, 23); // The symbol can not be followed by a factor.
+				}
+			} // if
 		}
 		else if (sym == SYM_NUMBER)
 		{
@@ -328,15 +619,27 @@ void factor(symset fsys)
 				error(25); // The number is too great.
 				num = 0;
 			}
-			gen(LIT, 0, num);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(LIT, 0, num);
+			}
+			else
+			{ // CONST_EXPR
+				rv = num;
+			}
 			getsym();
 		}
 		else if (sym == SYM_LPAREN)
 		{
 			getsym();
-			set = uniteset(createset(SYM_RPAREN, SYM_NULL), fsys);
-			expression(set);
+			set = createset(SYM_RPAREN, SYM_NULL);
+			set1 = uniteset(ksys, set);
+			rv = or_condition(set, set1, CONST_CHECK);											// modified by nanahka 17-11-26
 			destroyset(set);
+			destroyset(set1);
+			backpatch(list[0]);																	// added by nanahka 17-11-26
+			backpatch(list[1]);
+			list[0] = list[1] = 0;
 			if (sym == SYM_RPAREN)
 			{
 				getsym();
@@ -345,95 +648,155 @@ void factor(symset fsys)
 			{
 				error(22); // Missing ')'.
 			}
+
 		}
 		else if(sym == SYM_MINUS) // UMINUS,  Expr -> '-' Expr
-		{  
-			 getsym();
-			 expression(fsys);
-			 gen(OPR, 0, OPR_NEG);
+		{
+			getsym();
+			rv = factor(fsys, ksys, CONST_CHECK);												// modified by nanahka 17-11-14
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_NEG);
+			}
+			else
+			{ // CONST_EXPR
+				rv = -rv;
+			}
 		}
-		test(fsys, createset(SYM_LPAREN, SYM_NULL), 23);
-	} // while
+		else if (sym == SYM_NOT)																	// added by nanahka 17-11-26
+		{
+			getsym();
+			factor(fsys, ksys, UNCONST_EXPR);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_NOT);
+			}
+			else
+			{ // CONST_EXPR
+				error(20); // Relop not admitted in const expression.
+			}
+		}
+		test(ksys, ksys, 23); // The symbol can not be followed by an expression.
+	} // if
+	return rv;																					// added by nanahka 17-11-14
 } // factor
 
 //////////////////////////////////////////////////////////////////////
-void term(symset fsys)
+int term(symset fsys, symset ksys, int CONST_CHECK)
 {
-	int mulop;
-	symset set;
-	
-	set = uniteset(fsys, createset(SYM_TIMES, SYM_SLASH, SYM_NULL));
-	factor(set);
+	int mulop, r, rv = 0;
+	symset set, set1;
+
+	set = expandset(fsys, SYM_TIMES, SYM_SLASH, SYM_NULL);
+	set1 = expandset(ksys, SYM_TIMES, SYM_SLASH, SYM_NULL);
+
+	rv = factor(set, set1, CONST_CHECK);														// modified by nanahka 17-11-14
 	while (sym == SYM_TIMES || sym == SYM_SLASH)
 	{
 		mulop = sym;
 		getsym();
-		factor(set);
+		r = factor(set, set1, CONST_CHECK);														// modified by nanahka 17-11-14
 		if (mulop == SYM_TIMES)
 		{
-			gen(OPR, 0, OPR_MUL);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_MUL);
+			}
+			else
+			{ // CONST_EXPR
+				rv *= r;
+			}
 		}
 		else
 		{
-			gen(OPR, 0, OPR_DIV);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_DIV);
+			}
+			else
+			{ // CONST_EXPR
+				rv /= r;
+			}
 		}
 	} // while
 	destroyset(set);
+	destroyset(set1);
+	return rv;
 } // term
 
 //////////////////////////////////////////////////////////////////////
-void expression(symset fsys)
+int expression(symset fsys, symset ksys, int CONST_CHECK)
 {
-	int addop;
-	symset set;
+	int addop, r, rv = 0;
+	symset set, set1;
 
-	set = uniteset(fsys, createset(SYM_PLUS, SYM_MINUS, SYM_NULL));
-	
-	term(set);
+	set = expandset(fsys, SYM_PLUS, SYM_MINUS, SYM_NULL);
+	set1 = expandset(ksys, SYM_PLUS, SYM_MINUS, SYM_NULL);
+
+	rv = term(set, set1, CONST_CHECK);															// modified by nanahka 17-11-14
 	while (sym == SYM_PLUS || sym == SYM_MINUS)
 	{
 		addop = sym;
 		getsym();
-		term(set);
+		r = term(set, set1, CONST_CHECK);														// modified by nanahka 17-11-14
 		if (addop == SYM_PLUS)
 		{
-			gen(OPR, 0, OPR_ADD);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_ADD);
+			}
+			else
+			{ // CONST_EXPR
+				rv += r;
+			}
 		}
 		else
 		{
-			gen(OPR, 0, OPR_MIN);
+			if (CONST_CHECK)
+			{ // UNCONST_EXPR
+				gen(OPR, 0, OPR_MIN);
+			}
+			else
+			{ // CONST_EXPR
+				rv -= r;
+			}
 		}
 	} // while
-
 	destroyset(set);
+	destroyset(set1);
+	return rv;
 } // expression
 
 //////////////////////////////////////////////////////////////////////
-void condition(symset fsys)
+int condition(symset fsys, symset ksys, int CONST_CHECK)
 {
+	int rv = 0;																						// added by nanahka 17-11-26
 	int relop;
-	symset set;
+	symset set, set1;
 
 	if (sym == SYM_ODD)
 	{
 		getsym();
-		expression(fsys);
-		gen(OPR, 0, 6);
+		expression(fsys, ksys, UNCONST_EXPR);													// modified by nanahka 17-11-13
+		gen(OPR, 0, OPR_ODD);
 	}
 	else
-	{
+	{ // expression
 		set = uniteset(relset, fsys);
-		expression(set);
+		set1 = uniteset(set, ksys);
+		rv = expression(set, set1, CONST_CHECK);												// modified by nanahka 17-11-26
 		destroyset(set);
-		if (! inset(sym, relset))
+		destroyset(set1);
+		if (inset(sym, relset))																	// modified by nanahka 17-11-26
 		{
-			error(20);
-		}
-		else
-		{
+			if (!CONST_CHECK)																	// added by nanahk 17-11-26
+			{ // CONST_EXPR
+				error(20); // Relop not admitted in const expression.
+				return 0;
+			}
 			relop = sym;
 			getsym();
-			expression(fsys);
+			expression(fsys, ksys, UNCONST_EXPR);												// modified by nanahka 17-11-13
 			switch (relop)
 			{
 			case SYM_EQU:
@@ -456,75 +819,273 @@ void condition(symset fsys)
 				break;
 			} // switch
 		} // else
+		// if (expr), stack[top] = expr
 	} // else
+	return rv;
 } // condition
 
 //////////////////////////////////////////////////////////////////////
-void statement(symset fsys)
+int and_condition(symset fsys, symset ksys, int CONST_CHECK)
 {
-	int i, cx1, cx2;
+	int rv;																						// added 17-11-26
+	int *t_list, *f_list;																		// added 17-11-26
+	symset set, set1;
+
+	set = expandset(fsys, SYM_AND, SYM_NULL);
+	set1 = uniteset(ksys, set);
+	rv = condition(set, set1, CONST_CHECK);
+	f_list = (int*)malloc( (CXMAX + 1) * sizeof(int));
+	f_list[0] = 0;
+	if (sym == SYM_AND && !CONST_CHECK)															// added by nanahk 17-11-26
+	{ // CONST_EXPR
+		error(20); // Relop not admitted in const expression.
+		test(ksys, ksys, 19); // Incorrect symbol.
+		rv = 0;
+	}
+	while (sym == SYM_AND && CONST_CHECK)
+	{
+		f_list[++f_list[0]] = cx;
+		gen(JND, 0, 0); // if stack[top] == 0, jump the other and_condition
+		getsym();
+		condition(set, set1, UNCONST_EXPR);
+		gen(OPR, 0, OPR_AND);
+	}
+	destroyset(set);
+	destroyset(set1);
+	list[0] = f_list;
+	return rv;
+}
+
+//////////////////////////////////////////////////////////////////////
+int or_condition(symset fsys, symset ksys, int CONST_CHECK)
+{
+	int rv;																						// added 17-11-26
+	int *t_list;																			// added 17-11-26
+	symset set, set1;
+
+	set = expandset(fsys, SYM_OR, SYM_NULL);
+	set1 = uniteset(ksys, set);
+	rv = and_condition(set, set1, CONST_CHECK);
+	t_list = (int*)malloc( (CXMAX + 1) * sizeof(int));
+	t_list[0] = 0;
+	if (sym == SYM_OR && !CONST_CHECK)															// added by nanahk 17-11-26
+	{ // CONST_EXPR
+		error(20); // Relop not admitted in const expression.
+		test(ksys, ksys, 19); // Incorrect symbol.
+		rv = 0;
+	}
+	while (sym == SYM_OR && CONST_CHECK)
+	{
+		t_list[++t_list[0]] = cx;
+		gen(JNDN, 0, 0); // if stack[top] != 0, jump the other and_condition
+		backpatch(list[0]);
+		getsym();
+		and_condition(set, set1, UNCONST_EXPR);
+		gen(OPR, 0, OPR_OR);
+	}
+	destroyset(set);
+	destroyset(set1);
+	list[1] = t_list;
+	return rv;
+}
+
+//////////////////////////////////////////////////////////////////////
+void statement(symset fsys, symset ksys)
+{
+	int i, cx1, cx2,cx3,cx4;
 	symset set1, set;
 
 	if (sym == SYM_IDENTIFIER)
-	{ // variable assignment
+	{
 		mask* mk;
-		if (! (i = position(id)))
+		if (! (i = position(id, TABLE_BEGIN)))
 		{
 			error(11); // Undeclared identifier.
-		}
-		else if (table[i].kind != ID_VARIABLE)
-		{
-			error(12); // Illegal assignment.
-			i = 0;
-		}
-		getsym();
-		if (sym == SYM_BECOMES)
-		{
 			getsym();
 		}
-		else
-		{
-			error(13); // ':=' expected.
-		}
-		expression(fsys);
-		mk = (mask*) &table[i];
-		if (i)
-		{
-			gen(STO, level - mk->level, mk->address);
-		}
-	}
-	else if (sym == SYM_CALL)
-	{ // procedure call
-		getsym();
-		if (sym != SYM_IDENTIFIER)
-		{
-			error(14); // There must be an identifier to follow the 'call'.
-		}
-		else
-		{
-			if (! (i = position(id)))
+		else if (table[i].kind == ID_PROCEDURE)
+		{ // procedure call
+			getsym();
+			mk = (mask*) &table[i];
+			int n = *mk->ptr;
+			if (sym == SYM_LPAREN)
 			{
-				error(11); // Undeclared identifier.
-			}
-			else if (table[i].kind == ID_PROCEDURE)
+				getsym();
+				set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
+				set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
+				if (n)
+				{
+					if (sym == SYM_RPAREN)
+					{
+						error(42); // Too few parameters in a procedure.
+					}
+					else
+					{
+						test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
+					}
+				}
+				while (inset(sym, exp_first_sys) && n--)
+				{
+					expression(set, set1, UNCONST_EXPR);
+					if (sym == SYM_COMMA)
+					{
+						getsym();
+					}
+					else if (sym == SYM_RPAREN)
+					{
+						getsym();
+						if (n)
+						{
+							error(42); // Too few parameters in a procedure.
+						}
+						break;
+					}
+					else
+					{
+						error(40); // Missing ',' or ')'.
+					}
+				} // while
+				destroyset(set);
+				destroyset(set1);
+				if (inset(sym, exp_first_sys))
+				{
+					error(39); // Too many parameters in a procedure.
+				}
+				if (sym == SYM_RPAREN)
+				{
+					getsym();
+				}
+			} // if
+			if (!n)
 			{
-				mask* mk;
-				mk = (mask*) &table[i];
 				gen(CAL, level - mk->level, mk->address);
+			}
+		}
+		else
+		{ // variable/array assignment
+			if (table[i].kind == ID_ARRAY)
+			{
+				getsym();
+				if (sym != SYM_LSQUARE)
+				{
+					error(38); // '[' expected
+					i = 0;
+				}
+				else
+				{
+					getsym();
+				}
+				if (i)
+				{
+					mk = (mask*) &table[i];
+					ptr = mk->ptr;
+					int d = *ptr; // d <- dimensions of the array
+					set = createset(SYM_RSQUARE, SYM_NULL);
+					set1 = uniteset(ksys, set);
+					expression(set, set1, UNCONST_EXPR);
+					if (sym != SYM_RSQUARE)
+					{
+						error(34); // ']' expected.
+					}
+					else
+					{
+						getsym();
+					}
+					--d;
+					while (sym == SYM_LSQUARE && d)
+					{
+						getsym(); // take '['
+						gen(LIT, 0, ptr[ptr[0] - d + 1]);
+						gen(OPR, 0, OPR_MUL);
+						expression(set, set1, UNCONST_EXPR);
+						gen(OPR, 0, OPR_ADD);
+						if (sym != SYM_RSQUARE)
+						{
+							error(34); // ']' expected.
+						}
+						else
+						{
+							getsym();
+						}
+						--d;
+					}
+					destroyset(set);
+					destroyset(set1);
+					if (!d)
+					{ // number of subscripts read == array dimensions
+						//gen(LIT, 0, sizeof(int));
+						//gen(OPR, 0, OPR_MUL);
+						gen(LIT, 0, mk->address);
+						gen(OPR, 0, OPR_ADD);
+					}
+					else
+					{ // number of subscripts read < array dimensions
+						error(29); // Too few subscripts.
+						i = 0;
+					}
+				} // if
+				set = createset(SYM_BECOMES, SYM_NULL);
+				set1 = uniteset(ksys, set);
+				if (!i)
+				{ // discard the leftover parts of the subscripts
+					test(set, set1, 19); // Incorrect symbol.
+				}
+				else if (sym == SYM_LSQUARE)														// added by nanahka 17-11-15
+				{
+					test(set, set1, 30); // Too many subscripts.
+				}
+				destroyset(set);
+				destroyset(set1);
+			}
+			else if (table[i].kind != ID_VARIABLE)													// modified by nanahka 17-11-14
+			{
+				error(12); // Illegal assignment.
+				i = 0;
+				getsym();
+			}
+			else
+			{ // ID_VARIABLE
+				getsym();
+			}
+			if (sym == SYM_LSQUARE)
+			{ // ID_VARIABLE / Illegal / Too many subscripts in array
+				error(27); // Applying the subscripts operator on non-array.
+				getsym();
+				set = createset(SYM_BECOMES, SYM_NULL);
+				set1 = uniteset(ksys, set);
+				test(set, set1, 19); // Incorrect symbol.
+				destroyset(set);
+				destroyset(set1);
+			}
+			if (sym == SYM_BECOMES)
+			{
+				getsym();
 			}
 			else
 			{
-				error(15); // A constant or variable can not be called. 
+				error(13); // ':=' expected.
 			}
-			getsym();
-		}
-	} 
+			expression(fsys, ksys, UNCONST_EXPR);													// modified by nanahka 17-11-13
+			mk = (mask*) &table[i];
+			if (i)
+			{
+				if (table[i].kind == ID_VARIABLE)
+				{
+					gen(STO, level - mk->level, mk->address);
+				}
+				else // ID_ARRAY
+				{
+					gen(STOI, level - mk->level, 0);
+				}
+			}
+		} // if
+	}
 	else if (sym == SYM_IF)
 	{ // if statement
 		getsym();
-		set1 = createset(SYM_THEN, SYM_DO, SYM_NULL);
-		set = uniteset(set1, fsys);
-		condition(set);
+		set1 = createset(SYM_THEN, SYM_NULL);
+		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
+		or_condition(set1, set, UNCONST_EXPR);																	// modified by nanahka 17-11-13
 		destroyset(set1);
 		destroyset(set);
 		if (sym == SYM_THEN)
@@ -537,27 +1098,34 @@ void statement(symset fsys)
 		}
 		cx1 = cx;
 		gen(JPC, 0, 0);
-		statement(fsys);
-		code[cx1].a = cx;	
-	}
+		statement(fsys, ksys);	// modified by nanahka 17-11-13
+		cx2=cx;
+		gen(JMP,0,0);
+		code[cx1].a = cx;
+		if(sym!=SYM_ELSE)
+			error(47);      //missing 'else
+		statement(fsys,ksys);
+		code[cx2].a=cx;
+	} //PL0 has been changed to 'else' is necessary,but I will find a way to change it to C_style
 	else if (sym == SYM_BEGIN)
 	{ // block
 		getsym();
-		set1 = createset(SYM_SEMICOLON, SYM_END, SYM_NULL);
-		set = uniteset(set1, fsys);
-		statement(set);
-		while (sym == SYM_SEMICOLON || inset(sym, statbegsys))
+		set1 = createset(SYM_SEMICOLON, SYM_NULL);
+		set = uniteset_mul(ksys, set1, stat_first_sys, 0);										// modified by nanahka 17-11-13
+		setinsert(set, SYM_END);
+		do
 		{
-			if (sym == SYM_SEMICOLON)
+			statement(set1, set);
+			if (sym == SYM_SEMICOLON)															// modified by nanahka 17-11-13
 			{
 				getsym();
 			}
 			else
 			{
-				error(10);
+				error(10); // ';' expected.
 			}
-			statement(set);
-		} // while
+		}
+		while (inset(sym, stat_first_sys));
 		destroyset(set1);
 		destroyset(set);
 		if (sym == SYM_END)
@@ -566,7 +1134,7 @@ void statement(symset fsys)
 		}
 		else
 		{
-			error(17); // ';' or 'end' expected.
+			error(17); // 'end' expected.														// modified by nanahka 17-11-13
 		}
 	}
 	else if (sym == SYM_WHILE)
@@ -574,8 +1142,8 @@ void statement(symset fsys)
 		cx1 = cx;
 		getsym();
 		set1 = createset(SYM_DO, SYM_NULL);
-		set = uniteset(set1, fsys);
-		condition(set);
+		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
+		or_condition(set1, set, UNCONST_EXPR);																	// modified by nanahka 17-11-13
 		destroyset(set1);
 		destroyset(set);
 		cx2 = cx;
@@ -588,34 +1156,119 @@ void statement(symset fsys)
 		{
 			error(18); // 'do' expected.
 		}
-		statement(fsys);
+		statement(fsys, ksys);
 		gen(JMP, 0, cx1);
 		code[cx2].a = cx;
 	}
-	test(fsys, phi, 19);
+	else if(sym=SYM_FOR)
+	{//for statement
+		getsym();
+		if(sym!=SYM_LPAREN)
+			error(43);   //missing '('
+		getsym();
+		if((i=position(id, TABLE_BEGIN))==0)
+			error(11);           //id not declared
+		if(table[i].kind!=ID_VARIABLE)
+			error(44);           //it must be a variable
+		set1=createset(SYM_SEMICOLON,SYM_NULL);
+		set=uniteset_mul(ksys,set1,SYM_IDENTIFIER,0);
+		expression(set1,set, UNCONST_EXPR);
+		//destroyset(set1);
+		//destoryset(set);
+		if(sym!=SYM_SEMICOLON)
+			error(10);            //';' expected
+		getsym();
+		cx1=cx;
+		or_condition(set1,set, UNCONST_EXPR);          //condition
+		destroyset(set);
+		destroyset(set1);
+		cx2=cx;
+		gen(JPC,0,0);
+		cx3=cx;
+		gen(JMP,0,0);
+		if((i=position(id, TABLE_BEGIN))==0)
+			error(11);           //id not declared
+		if(table[i].kind!=ID_VARIABLE)
+			error(44);           //it must be a variable
+		set1=createset(SYM_RPAREN,SYM_NULL);
+		set=uniteset_mul(ksys,set1,stat_first_sys,0);
+		cx4=cx;
+		expression(set1,set, UNCONST_EXPR);        //change cycle var
+		gen(JMP,0,cx1);
+		code[cx3].a=cx;
+		statement(fsys,ksys);       //body of 'for'
+		gen(JMP,0,cx4);
+		code[cx2].a=cx;
+	}
+	else if(sym==SYM_RETURN)
+	{
+		getsym();
+		set1=createset(SYM_SEMICOLON,SYM_NULL);
+		set=uniteset_mul(ksys,set1,stat_first_sys,0);
+		expression(set1,set, UNCONST_EXPR);
+		if(sym!=SYM_SEMICOLON)
+		{
+			error(26);          //missing ';'
+		}
+		else
+		{
+			getsym();
+		}
+		gen(OPR,0,OPR_RET);
+		cx_ret[i_ret]=cx;
+		gen(JMP,0,0);
+	}
+	else if(sym==SYM_EXIT)
+	{
+		getsym();
+		if(sym!=SYM_LPAREN)
+			error(43);         //'(' is needed
+		getsym();
+		i=position(id, TABLE_BEGIN);
+		if(table[i].kind!=ID_CONSTANT)
+			error(45);          //'exit' have to return a constant
+		getsym();
+		if(sym!=SYM_LPAREN)
+			error(22);           //missing ')'
+		getsym();
+		if(sym!=SYM_SEMICOLON)
+			error(10);           //missing ';'
+		gen(LIT,0,table[i].value);
+		gen(OPR,0,OPR_RET);
+		if(i_exit=MAX_EXIT)
+			error(46);          //this is the maximum of 'exit'
+		cx_exit[i_exit++]=cx;
+		gen(JMP,0,0);
+	}
+
+
+	test(ksys, ksys, 19);																		// modified by nanahka 17-11-20
 } // statement
-			
+
 //////////////////////////////////////////////////////////////////////
-void block(symset fsys)
+void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of current block
 {
 	int cx0; // initial code index
 	mask* mk;
 	int block_dx;
-	int savedTx;
+	int block_tx = tx_b;																// added by nanahka 17-11-20
+	int savedTx, savedDx;																// added by nanahka 17-11-20
 	symset set1, set;
+	int i=0;
 
 	dx = 3;
 	block_dx = dx;
-	mk = (mask*) &table[tx];
-	mk->address = cx;
-	gen(JMP, 0, 0);
+	mk = (mask*) &table[tx_b];	// when block() called after creating a procedure, this is the entry of the procedure
+	mk->address = cx;			// enter index of the next code JMP in "address" of the procedure
+	gen(JMP, 0, 0);				// generate an instruction to jump to the procedure, the address filled later
 	if (level > MAXLEVEL)
 	{
 		error(32); // There are too many levels.
 	}
 	do
 	{
-		if (sym == SYM_CONST)
+		tx_b = block_tx; // set tx_b to the beginning index of current block;					// added by nanahka 17-11-20
+		if (sym == SYM_CONST)		//WARNING: other types of declaration precede the procedure!!! or tx_b will be reset!
 		{ // constant declarations
 			getsym();
 			do
@@ -637,17 +1290,18 @@ void block(symset fsys)
 			}
 			while (sym == SYM_IDENTIFIER);
 		} // if
-
 		if (sym == SYM_VAR)
 		{ // variable declarations
 			getsym();
-			do
+			do																					// modified by nanahka 17-11-14
 			{
-				vardeclaration();
+				set = createset(SYM_COMMA, SYM_SEMICOLON, SYM_NULL);
+				set1 = uniteset_mul(ksys, set, blk_first_sys, 0);
+				vardeclaration(set, set1);
 				while (sym == SYM_COMMA)
 				{
 					getsym();
-					vardeclaration();
+					vardeclaration(set, set1);
 				}
 				if (sym == SYM_SEMICOLON)
 				{
@@ -657,12 +1311,15 @@ void block(symset fsys)
 				{
 					error(5); // Missing ',' or ';'.
 				}
+				destroyset(set);
+				destroyset(set1);
 			}
 			while (sym == SYM_IDENTIFIER);
 		} // if
 		block_dx = dx; //save dx before handling procedure call!
 		while (sym == SYM_PROCEDURE)
 		{ // procedure declarations
+			int PROC_CREATED = TRUE;
 			getsym();
 			if (sym == SYM_IDENTIFIER)
 			{
@@ -672,62 +1329,130 @@ void block(symset fsys)
 			else
 			{
 				error(4); // There must be an identifier to follow 'const', 'var', or 'procedure'.
+				PROC_CREATED = FALSE;
+			}
+			level++;																			// modified by nanahka 17-11-20
+			savedTx = tx_b = tx; // entry of the procedure created(if succeeded)
+			if (sym == SYM_LPAREN)
+			{
+				getsym();
+				savedDx = dx; // n parameters bound to dx -n-1,-n,...,-1. The actual dx doesn't increase.
+				int n = 0;
+				while (sym == SYM_IDENTIFIER)
+				{
+					char id_t[MAXIDLEN + 1];
+					strcpy(id_t, id);
+					getsym();
+					set = createset(SYM_COMMA, SYM_RPAREN, SYM_LSQUARE, SYM_NULL);
+					set1 = uniteset_mul(ksys, set, blk_first_sys, 0);
+					setinsert_mul(set1, SYM_IDENTIFIER, SYM_SEMICOLON, SYM_NULL);
+					test(set, set1, 40); // Missing ',' or ')'.
+					destroyset(set);
+					destroyset(set1);
+					if (sym == SYM_LSQUARE)
+					{
+						error(41); // Array type as parameter forbidden.
+						set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
+						set1 = uniteset_mul(ksys, set, blk_first_sys, 0);
+						setinsert_mul(set1, SYM_IDENTIFIER, SYM_SEMICOLON, SYM_NULL);
+						test(set, set1, 40); // Missing ',' or ')'.
+						destroyset(set);
+						destroyset(set1);
+					}
+					else
+					{
+						if ( (++n) > MAXFUNPMT)
+						{
+							error(39); // Too many parameters in a procedure.
+							--n;
+							break;
+						}
+						strcpy(id, id_t);
+						dx = 0;				// as a sign if backpatching fails
+						enter(ID_VARIABLE); // address will entered later
+					}
+					if (sym == SYM_COMMA)
+					{
+						getsym();
+					}
+					else if (sym == SYM_RPAREN)
+					{
+						break;
+					}
+				} // while
+				if (sym == SYM_RPAREN)
+				{
+					getsym();
+				}
+				dx = savedDx;
+				if (PROC_CREATED)
+				{
+					*table[tx_b].ptr = n;
+					while (n--)
+					{
+						mask *mk = (mask*)&table[tx - n];
+						mk->address = -n - 1;
+					}
+				}
+			}
+			else
+			{
+				*table[tx_b].ptr = 0;
 			}
 
-
+			set1 = createset(SYM_SEMICOLON, SYM_NULL);
+			set = uniteset_mul(ksys, set1, blk_first_sys, 0);
+			test(set1, set, 26); // Missing ';'.
 			if (sym == SYM_SEMICOLON)
 			{
 				getsym();
 			}
-			else
-			{
-				error(5); // Missing ',' or ';'.
-			}
-
-			level++;
-			savedTx = tx;
-			set1 = createset(SYM_SEMICOLON, SYM_NULL);
-			set = uniteset(set1, fsys);
-			block(set);
+			block(set1, set);																	// modified by nanahka 17-11-13
 			destroyset(set1);
 			destroyset(set);
-			tx = savedTx;
+			tx = savedTx;	// all the codes of the procedure generated, release the entries in TABLE
 			level--;
 
 			if (sym == SYM_SEMICOLON)
 			{
 				getsym();
-				set1 = createset(SYM_IDENTIFIER, SYM_PROCEDURE, SYM_NULL);
-				set = uniteset(statbegsys, set1);
-				test(set, fsys, 6);
-				destroyset(set1);
-				destroyset(set);
 			}
 			else
 			{
-				error(5); // Missing ',' or ';'.
+				error(26); // Missing ';'.														// modified by nanahka 17-11-13
 			}
 		} // while
 		dx = block_dx; //restore dx after handling procedure call!
-		set1 = createset(SYM_IDENTIFIER, SYM_NULL);
-		set = uniteset(statbegsys, set1);
-		test(set, declbegsys, 7);
-		destroyset(set1);
+		//set1 = createset(SYM_IDENTIFIER, SYM_NULL);
+		set = uniteset(blk_first_sys, ksys);
+		test(blk_first_sys, set, 7); // Declaration/Statement expected.							// modified by nanahka 17-11-13
+		//destroyset(set1);
 		destroyset(set);
 	}
-	while (inset(sym, declbegsys));
+	while (inset(sym, decl_first_sys));
 
-	code[mk->address].a = cx;
-	mk->address = cx;
+	code[mk->address].a = cx;	// fill the address of JMP to the procedure(no code belonging to it generated during declaration)
+	mk->address = cx;			// change the "address" attribute of the procedure to its true entrance, save 1 JMP
 	cx0 = cx;
-	gen(INT, 0, block_dx);
-	set1 = createset(SYM_SEMICOLON, SYM_END, SYM_NULL);
-	set = uniteset(set1, fsys);
-	statement(set);
-	destroyset(set1);
-	destroyset(set);
+	gen(INT, 0, block_dx);		// distribute storage for Static Link(<-bp), Dynamic Link, Return Address, and variables
+	//set1 = createset(SYM_SEMICOLON, SYM_END, SYM_NULL);
+	//set = uniteset(fsys, ksys);
+	statement(fsys, ksys);	// modified by nanahka 17-11-13
+
+	//destroyset(set1);
+	//destroyset(set);
 	gen(OPR, 0, OPR_RET); // return
-	test(fsys, phi, 8); // test for error: Follow the statement is an incorrect symbol.
+	while (cx_ret[i_ret]!=0)
+	{
+		code[cx_ret[i]].a=cx;
+		cx_ret[i++]=0;
+	}
+	i=0;
+	while(cx_exit[i++]!=0)
+	{                                           //all 'exit' gen a instruction to jump to this end
+		code[cx_exit[i-1]].a = cx;
+	}
+	test(ksys, ksys, 8); // Follow the statement is an incorrect symbol.						// modified by nanahka 17-11-20
 	listcode(cx0, cx);
 } // block
 
@@ -735,7 +1460,7 @@ void block(symset fsys)
 int base(int stack[], int currentLevel, int levelDiff)
 {
 	int b = currentLevel;
-	
+
 	while (levelDiff--)
 		b = stack[b];
 	return b;
@@ -808,6 +1533,7 @@ void interpret()
 			case OPR_NEQ:
 				top--;
 				stack[top] = stack[top] != stack[top + 1];
+				break;																			// added by nanahka 17-11-26
 			case OPR_LES:
 				top--;
 				stack[top] = stack[top] < stack[top + 1];
@@ -815,6 +1541,7 @@ void interpret()
 			case OPR_GEQ:
 				top--;
 				stack[top] = stack[top] >= stack[top + 1];
+				break;																			// added by nanahka 17-11-26
 			case OPR_GTR:
 				top--;
 				stack[top] = stack[top] > stack[top + 1];
@@ -822,15 +1549,35 @@ void interpret()
 			case OPR_LEQ:
 				top--;
 				stack[top] = stack[top] <= stack[top + 1];
+				break;																			// added by nanahka 17-11-26
+			case OPR_NOT:																		// added by nanahka 17-11-26
+				stack[top] = !stack[top];
+				break;
+			case OPR_AND:																		// added by nanahka 17-11-26
+				top--;
+				stack[top] = stack[top] && stack[top + 1];
+				break;
+			case OPR_OR:																		// added by nanahka 17-11-26
+				top--;
+				stack[top] = stack[top] || stack[top + 1];
+				break;
 			} // switch
 			break;
 		case LOD:
 			stack[++top] = stack[base(stack, b, i.l) + i.a];
 			break;
+		case LODI:
+			stack[top] = stack[base(stack, b, i.l) + stack[top]];
+			break;
 		case STO:
 			stack[base(stack, b, i.l) + i.a] = stack[top];
 			printf("%d\n", stack[top]);
 			top--;
+			break;
+		case STOI:
+			stack[base(stack, b, i.l) + stack[top - 1]] = stack[top];
+			printf("%d\n", stack[top]);
+			top -= 2;
 			break;
 		case CAL:
 			stack[top + 1] = base(stack, b, i.l);
@@ -851,6 +1598,14 @@ void interpret()
 				pc = i.a;
 			top--;
 			break;
+		case JND:																				// added by nanahka 17-11-26
+			if (stack[top] == 0)
+				pc = i.a;
+			break;
+		case JNDN:																				// added by nanahka 17-11-26
+			if (stack[top] != 0)
+				pc = i.a;
+			break;
 		} // switch
 	}
 	while (pc);
@@ -859,12 +1614,12 @@ void interpret()
 } // interpret
 
 //////////////////////////////////////////////////////////////////////
-void main ()
+int main ()
 {
 	FILE* hbin;
 	char s[80];
 	int i;
-	symset set, set1, set2;
+	//symset set, set1, set2;																	// modified by nanahka 17-11-14
 
 	printf("Please input source file name: "); // get file name to be compiled
 	scanf("%s", s);
@@ -874,13 +1629,18 @@ void main ()
 		exit(1);
 	}
 
-	phi = createset(SYM_NULL);
-	relset = createset(SYM_EQU, SYM_NEQ, SYM_LES, SYM_LEQ, SYM_GTR, SYM_GEQ, SYM_NULL);
-	
-	// create begin symbol sets
-	declbegsys = createset(SYM_CONST, SYM_VAR, SYM_PROCEDURE, SYM_NULL);
-	statbegsys = createset(SYM_BEGIN, SYM_CALL, SYM_IF, SYM_WHILE, SYM_NULL);
-	facbegsys = createset(SYM_IDENTIFIER, SYM_NUMBER, SYM_LPAREN, SYM_MINUS, SYM_NULL);
+	 // create First/Follow/KeyWord symbol sets													// modified by nanahka 17-11-13
+	phi 				= createset(SYM_NULL);
+	relset 				= createset(SYM_EQU, SYM_NEQ, SYM_LES, SYM_LEQ, SYM_GTR, SYM_GEQ, SYM_NULL);
+
+	decl_first_sys 		= createset(SYM_CONST, SYM_VAR, SYM_PROCEDURE, SYM_NULL);
+	stat_first_sys 		= createset(SYM_IDENTIFIER, SYM_BEGIN, /*SYM_CALL,*/ SYM_IF, SYM_WHILE, SYM_NULL);	// deleted by nanahka 17-11-20
+	blk_first_sys 		= uniteset(decl_first_sys, stat_first_sys);
+	fac_first_sys 		= createset(SYM_IDENTIFIER, SYM_NUMBER, SYM_LPAREN, SYM_MINUS, SYM_NOT, SYM_NULL);
+	exp_first_sys		= fac_first_sys;
+
+	main_blk_follow_sys = createset(SYM_PERIOD, SYM_NULL);
+
 
 	err = cc = cx = ll = 0; // initialize global variables
 	ch = ' ';
@@ -888,18 +1648,24 @@ void main ()
 
 	getsym();
 
-	set1 = createset(SYM_PERIOD, SYM_NULL);
-	set2 = uniteset(declbegsys, statbegsys);
-	set = uniteset(set1, set2);
-	block(set);
-	destroyset(set1);
-	destroyset(set2);
-	destroyset(set);
+//	set1 = createset(SYM_PERIOD, SYM_NULL);
+//	set2 = uniteset(declbegsys, statbegsys);
+//	set = uniteset(set1, set2);
+	block(main_blk_follow_sys, main_blk_follow_sys);
+//	destroyset(set1);
+//	destroyset(set2);
+//	destroyset(set);
 	destroyset(phi);
 	destroyset(relset);
-	destroyset(declbegsys);
-	destroyset(statbegsys);
-	destroyset(facbegsys);
+	destroyset(decl_first_sys);
+	destroyset(stat_first_sys);
+	destroyset(blk_first_sys);
+	destroyset(fac_first_sys);
+	//destroyset(exp_first_sys);
+	destroyset(main_blk_follow_sys);
+//	destroyset(declbegsys);
+//	destroyset(statbegsys);
+//	destroyset(facbegsys);
 
 	if (sym != SYM_PERIOD)
 		error(9); // '.' expected.
@@ -915,6 +1681,9 @@ void main ()
 	else
 		printf("There are %d error(s) in PL/0 program.\n", err);
 	listcode(0, cx);
+
+	getchar();
+	getchar();
 } // main
 
 //////////////////////////////////////////////////////////////////////
