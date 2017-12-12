@@ -52,7 +52,7 @@ enum symtype
 	SYM_SEMICOLON,
 	SYM_PERIOD,
 	SYM_BECOMES,
-        SYM_BEGIN,
+    SYM_BEGIN,
 	SYM_END,
 	SYM_IF,
 	SYM_THEN,
@@ -69,7 +69,10 @@ enum symtype
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
 	SYM_RETURN,
-	SYM_EXIT
+	SYM_EXIT,
+	SYM_SWITCH,
+	SYM_CASE,
+	SYM_BREAK
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype
@@ -79,15 +82,15 @@ enum idtype
 
 enum opcode
 {
-	LIT, OPR, LOD, LODI, STO, STOI, CAL, INT, JMP, JPC											// added by nanahka 17-11-14
-};
+	LIT, OPR, LOD, LODI, STO, STOI, CAL, INT, JMP, JPC, EXT											// added by nanahka 17-11-14
+};                                                                       //added by lzp 
 
 enum oprcode
 {
 	OPR_RET, OPR_NEG, OPR_ADD, OPR_MIN,
 	OPR_MUL, OPR_DIV, OPR_ODD, OPR_EQU,
 	OPR_NEQ, OPR_LES, OPR_LEQ, OPR_GTR,
-	OPR_GEQ
+	OPR_GEQ, OPR_RTN                                //added by lzp 2017/12/10
 };
 
 
@@ -149,7 +152,8 @@ char* err_msg[] =
 /* 45 */       "you must return a constant.",
 /* 46 */       "no more exit can be added.",
 /* 47 */       "'else' expected.",
-/* 48 */       "another '|' is expected."
+/* 48 */       "another '|' is expected.",
+/* 49 */     "'while' expected ."
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -185,32 +189,33 @@ char* word[NRW + 1] =
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return" ,"exit"      //,"&&","||”，“！”               //add by lzp
+	"else","for","return" ,"exit", "switch", "case"                           //add by lzp
 };
 
 int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT  //,SYM_AND,SYM_OR,SYM_NOT                //added by lzp
+	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT , SYM_SWITCH, SYM_CASE,
+	SYM_BREAK                                                                                    //added by lzp 2017/12/12
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_AMPERSAND//,SYM_NOT,SYM_OR,SYM_AND																			// added 17-11-20
+	SYM_AMPERSAND,SYM_COLON																			// added 17-11-20
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&'									// added 17-11-20
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&',':'								// modified by lzp 2017/12/12
 };
 
 #define MAXINS   10																		// added & modified by nanahka 17-11-14
 char* mnemonic[MAXINS] =
 {
-	"LIT", "OPR", "LOD", "LODI", "STO", "STOI", "CAL", "INT", "JMP", "JPC"
+	"LIT", "OPR", "LOD", "LODI", "STO", "STOI", "CAL", "INT", "JMP", "JPC", "EXT"        //added by lzp 2017/12/12
 };
 
 typedef struct
