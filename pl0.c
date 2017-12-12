@@ -469,6 +469,8 @@ void listcode(int from, int to)
 	printf("\n");
 } // listcode
 
+
+int expression(symset fsys, symset ksys, int CONST_CHECK)
 //////////////////////////////////////////////////////////////////////
 int factor(symset fsys, symset ksys, int CONST_CHECK)
 {
@@ -513,7 +515,62 @@ int factor(symset fsys, symset ksys, int CONST_CHECK)
 					}
 					break;
 				case ID_PROCEDURE:
-					error(21); // Procedure identifier can not be in an expression.
+					getsym();                                               //added by lzp 2017/12/10
+					mk = (mask*)&table[i];
+					int n = *mk->ptr;
+					if (sym == SYM_LPAREN)
+					{
+						getsym();
+						set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
+						set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
+						if (n)
+						{
+							if (sym == SYM_RPAREN)
+							{
+								error(42); // Too few parameters in a procedure.
+							}
+							else
+							{
+								test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
+							}
+						}
+						while (inset(sym, exp_first_sys) && n--)
+						{
+							expression(set, set1, UNCONST_EXPR);
+							if (sym == SYM_COMMA)
+							{
+								getsym();
+							}
+							else if (sym == SYM_RPAREN)
+							{
+								getsym();
+								if (n)
+								{
+									error(42); // Too few parameters in a procedure.
+								}
+								break;
+							}
+							else
+							{
+								error(40); // Missing ',' or ')'.
+							}
+						} // while
+						destroyset(set);
+						destroyset(set1);
+						if (inset(sym, exp_first_sys))
+						{
+							error(39); // Too many parameters in a procedure.
+						}
+						if (sym == SYM_RPAREN)
+						{
+							getsym();
+						}
+					} // if
+					if (!n)
+					{
+						gen(CAL, level - mk->level, mk->address);
+					}
+					//error(21); // Procedure identifier can not be in an expression.
 					break;
 				case ID_ARRAY:																	// added by nanahka 17-11-15
 					if (CONST_CHECK)
@@ -1243,7 +1300,49 @@ void statement(symset fsys, symset ksys)
 		gen(JMP, 0, cx1);
 		code[cx2].a = cx;
 	}
-	else if(sym=SYM_FOR)
+	else if (sym == SYM_DO)                                                //added by lzp 2017/12/12 
+	{//do-while statement
+		getsym();
+		cx1 = cx;
+		statement(fsys,ksys);
+		if (sym != SYM_WHILE)
+		{
+			error(49);                 //missing 'while' in do-while
+		}
+		else
+		   getsym();
+		if (sym != SYM_LPAREN)
+		{
+			error(43);                        //missing '('
+		}
+		else
+		    getsym();
+		set1 = createset(SYM_RPAREN, SYM_NULL);
+		set = uniteset_mul(ksys, SYM_SEMICOLON, SYM_NULL);
+		condition(set1, set);
+		if (sym == SYM_RPAREN)
+		{
+			getsym();
+		}
+		else
+		{
+			error(22);            //missing ')'
+		}
+		if (sym == SYM_SEMICOLON)
+		{
+			getsym();
+		}
+		else
+		{
+			error(26);            //missing ';'
+		}
+		cx2 = cx;
+		gen(JPC, 0, 0);
+		gen(JMP, 0, cx1);
+		code[cx2].a = cx;
+
+	}
+	else if(sym==SYM_FOR)
 	{//for statement
 		getsym();
 		if(sym!=SYM_LPAREN)
@@ -1255,7 +1354,7 @@ void statement(symset fsys, symset ksys)
 			error(44);           //it must be a variable
 		set1=createset(SYM_SEMICOLON,SYM_NULL);
 		set=uniteset_mul(ksys,set1,SYM_IDENTIFIER,0);
-		expression(set1,set);
+		statement(set1,set);
 		//destroyset(set1);
 		//destoryset(set);
 		if(sym!=SYM_SEMICOLON)
@@ -1276,12 +1375,21 @@ void statement(symset fsys, symset ksys)
 		set1=createset(SYM_RPAREN,SYM_NULL);
 		set=uniteset_mul(ksys,set1,stat_firat_sys,0);
 		cx4=cx;
-		expression(set1,set);        //change cycle var  
+		statement(set1,set);        //change cycle var  
 		gen(JMP,0,cx1);
 		code[cx3].a=cx;
 		statement(fsys,ksys);       //body of 'for'
 		gen(JMP,0,cx4);
 		code[cx2].a=cx;
+	}
+	else if (sym == SYM_BREAK) 
+	{
+
+	}
+	else if (sym == SYM_SWITCH) 
+	{
+		getsym();
+
 	}
 	else if(sym==SYM_RETURN)
 	{
@@ -1291,31 +1399,29 @@ void statement(symset fsys, symset ksys)
 		expression(set1,set);
 		if(sym!=SYM_SEMICOLON)
 			error(26);          //missing ';'
-		gen(OPR,0,OPR_RET);
-		cx_ret[i_ret]=cx;
-		gen(JMP,0,0);
+		gen(OPR,0,OPR_RTN);
+		getsym();
+		//cx_ret[i_ret]=cx;
+		//gen(JMP,0,0);
 	}
 	else if(sym==SYM_EXIT)
 	{
 		getsym();
-		if(sym!=SYMLPAREN)
-			error(43);         //'(' is needed
+		if (sym != SYM_LPAREN)
+			error(43);       //'(' is needed
 		getsym();
-		i=position(id);
-		if(table[i].kind!=ID_CONSTANT)
+		i = position(id);
+		if (table[i].kind != ID_CONSTANT)
 			error(45);          //'exit' have to return a constant
 		getsym();
-		if(sym!=SYM_LPAREN)
+		if (sym != SYM_LPAREN)
 			error(22);           //missing ')'
 		getsym();
-		if(sym!=SYM_SEMICOLON)
-			error(10);           //missing ';'
-		gen(LIT,0,table[i].value);
-		gen(OPR,0,OPR_RET);
-		if(i_exit=MAX_EXIT)
-			error(46);          //this is the maximum of 'exit'
-		cx_exit[i_exit++]=cx;
-		gen(JMP,0,0);
+		if (sym != SYM_SEMICOLON)
+			error(10);          //missing ';'
+		gen(LIT, 0, table[i].value);
+		gen(EXT, 0, 0);
+		getsym();
 	}
 		
 		
@@ -1519,6 +1625,7 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	//destroyset(set1);
 	//destroyset(set);
 	gen(OPR, 0, OPR_RET); // return
+	/*
 	for(cx_ret[i_ret]!=0)
 	{
 		code[cx_ret[i]].a=cx;
@@ -1529,6 +1636,7 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	{                                           //all 'exit' gen a instruction to jump to this end
 		code[cx_exit[i-1]]=cx;
 	}
+	*/
 	test(ksys, ksys, 8); // Follow the statement is an incorrect symbol.						// modified by nanahka 17-11-20
 	listcode(cx0, cx);
 } // block
@@ -1624,6 +1732,12 @@ void interpret()
 			case OPR_LEQ:
 				top--;
 				stack[top] = stack[top] <= stack[top + 1];
+				break;
+			case OPR_RTN:                           //added by lzp 2017/12/10
+				stack[b] = stack[top];
+				top = b;
+				pc = stack[top + 2];
+				b = stack[top + 1];
 			} // switch
 			break;
 		case LOD:
@@ -1660,6 +1774,9 @@ void interpret()
 			if (stack[top] == 0)
 				pc = i.a;
 			top--;
+			break;
+		case EXT:
+			pc = cx;                        //added by lzp,instruction jump to the last one
 			break;
 		} // switch
 	}
