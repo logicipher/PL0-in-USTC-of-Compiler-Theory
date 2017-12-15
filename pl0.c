@@ -1026,7 +1026,7 @@ void ex_condition(symset fsys)
 void statement(symset fsys, symset ksys)
 {
 	int i, cx1, cx2,cx3,cx4;
-	symset set1, set;
+	symset set1, set, set2, set3;
 
 	if (sym == SYM_IDENTIFIER)
 	{
@@ -1125,7 +1125,7 @@ void statement(symset fsys, symset ksys)
 						getsym();
 					}
 					--d;
-					while (sym == SYM_LSQUARE && d)
+					while (sym == SYM_LSQUARE && d）
 					{
 						getsym(); // take '['
 						gen(LIT, 0, ptr[ptr[0] - d + 1]);
@@ -1210,6 +1210,14 @@ void statement(symset fsys, symset ksys)
 				{
 					gen(STOI, level - mk->level, 0);
 				}
+			}
+			if (sym != SYMSEMICOLON)                            //modified by lzp 17/12/14,thre must be ';' at the end of statement
+			{
+				error(26);             //missing ';'
+			}
+			else
+			{
+				getsym();
 			}
 		} // if
 	}
@@ -1389,8 +1397,97 @@ void statement(symset fsys, symset ksys)
 	else if (sym == SYM_SWITCH) 
 	{
 		getsym();
-
-	}
+		if (sym != SYM_RPAREN)
+		{
+			error(43);           //missing '('
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		set = createset(SYM_RPAREN,SYM_BEGIN, SYM_NULL);
+		set1 = uniteset_mul(set, SYM_CASE,SYM_BEGIN, ksys);
+		expression(set, set1, UNCONST_EXPR);
+		if (sym != SYM_RPAREN)
+		{
+			error(22);                       //missing ')'
+		}//if
+		else 
+		{
+			getsym();
+		}//else
+		if (sym != SYM_BEGIN)
+		{
+			error(50);              //missing 'begin'
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		if ((sym != SYM_CASE)||(sym!=SYM_DEFAULT)||(sym!=SYM_END))
+		{
+			error(51);              //missing 'case','end' or 'default'
+		}//if
+		set = createset(SYM_COLON, SYM_NULL);
+		set1 = uniteset_mul(ksys, set, stat_first_sys);
+		set2 = createset_mul(SYM_CASE,SYM_END, SYM_NULL);
+		set3 = uniteset_mul(ksys, set2, stat_first_sys);
+		int tmp;
+		int de_break;         //mark whether there is 'break' after 'default'
+		int cx_br;
+		while (sym != SYM_END)
+		{
+            if (tx_c == maxcase)
+			{
+				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
+				maxcase += INCREMENT;
+			}//if 
+			tmp = sym;                                     //store the keyword 'case' or 'default'
+			if (sym != SYM_DEFAULT) {
+				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
+			}//if
+			if (sym != SYM_COLON)
+			{
+				error(52);              //missing ':'
+			}//if
+			else
+			{
+				getsym();
+			}//else
+			if (tmp != SYM_DEFAULT)
+			{
+				switchtab[tx_c].c = cx;
+			}//if
+			else
+			{
+				cx1 = cx;
+			}//else
+           
+			while ((sym != SYM_CASE)||(sym!=SYM_DEFAULT)||(sym!=SYM_END))
+			{
+				if (sym == SYM_BREAK)
+				{
+					if (tmp != SYM_DEFAULT)
+					{
+						switchtab[tx_c].flag = TRUE;      //break
+						switchtab[tx_c++].cx_bre = cx;
+					}//if
+					else
+					{
+						de_break = TRUE;
+						cx_br = cx;
+					}//else
+				}//if
+				statement(set2, set3);
+			}//while2
+			                                           //prepare for more case
+		}//while1
+		int i;
+		for (i = 0; i < tx_c; i++)
+		{
+			gen();
+		}
+	}//else if
 	else if(sym==SYM_RETURN)
 	{
 		getsym();

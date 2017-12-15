@@ -3,10 +3,10 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NRW        17     // number of reserved words
+#define NRW        18     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
-#define NSYM       11     // maximum number of symbols in array ssym and csym
+#define NSYM       12     // maximum number of symbols in array ssym and csym                    //modified by lzp 27/12/14
 #define MAXIDLEN   10     // length of identifiers
 #define MAXARYDIM  10	  // maximum number of dimensions of an array							// added by nanahka 17-11-12
 #define MAXARYVOL  200	  // maximum volume of a dimension of an array							// added by nanahka 17-11-12
@@ -16,7 +16,7 @@
 #define MAXLEVEL   32     // maximum depth of nesting block
 #define CXMAX      500    // size of code array
 
-#define MAXSYM     39    // maximum number of symbols
+#define MAXSYM     44    // maximum number of symbols                                             //modified by lzp 17/12/14
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -24,9 +24,8 @@
 #define UNCONST_EXPR 1	  // the expression is not constant
 
 #define TABLE_BEGIN 0	  // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
-
-#define MAX_EXIT 20      //the max number of exit  ADDED BY LZP
-#define MAX_RET  20      //max number of return in evert procedure
+#define MAX_CASE 20       //maxinum cases in switsh                              added by lzp 17/12/14
+#define INCREMENT 5       //increment preparing for more space if necessary
 
 enum symtype
 {
@@ -58,7 +57,6 @@ enum symtype
 	SYM_THEN,
 	SYM_WHILE,
 	SYM_DO,
-	//SYM_CALL,					// deleted by nanahka 17-11-20
 	SYM_CONST,
 	SYM_VAR,
 	SYM_PROCEDURE,
@@ -68,11 +66,13 @@ enum symtype
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
-	SYM_RETURN,
+	SYM_RETURN,            
 	SYM_EXIT,
 	SYM_SWITCH,
 	SYM_CASE,
-	SYM_BREAK
+	SYM_BREAK,
+	SYM_DEFAULT,
+	SYM_COLON
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype
@@ -153,7 +153,10 @@ char* err_msg[] =
 /* 46 */       "no more exit can be added.",
 /* 47 */       "'else' expected.",
 /* 48 */       "another '|' is expected.",
-/* 49 */     "'while' expected ."
+/* 49 */     "'while' expected .",
+/* 50 */    "there must be 'begin' in switch statement.",
+/* 51 */    "'case','end',or 'default' is expected .",
+/* 52 */    "':' expected ."
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -175,10 +178,14 @@ int false_out[4][10]={0};//短路计算，假值链
 int true_count[4]={0};
 int false_count[4]={0};
 int condition_level=0;
+int tx_c=0;         //index of case table,pointing to the current case              //   added by lzp 17/12/14
+int maxcase = MAX_CASE;
+/*
 int cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
 int i_exit=0;    //to count the number of exit
 int cx_ret[MAX_RET];      //to mark the code of 'return'
 int i_ret=0;        //to count the number of 'return'
+*/
 
 char line[80];
 
@@ -189,7 +196,7 @@ char* word[NRW + 1] =
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return" ,"exit", "switch", "case"                           //add by lzp
+	"else","for","return" ,"exit", "switch", "case" ,"default"                          //add by lzp
 };
 
 int wsym[NRW + 1] =
@@ -197,14 +204,14 @@ int wsym[NRW + 1] =
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
 	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT , SYM_SWITCH, SYM_CASE,
-	SYM_BREAK                                                                                    //added by lzp 2017/12/12
+	SYM_BREAK, SYM_DEFAULT                                                                                    //added by lzp 2017/12/12
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_AMPERSAND,SYM_COLON																			// added 17-11-20
+	SYM_AMPERSAND, SYM_COLON																			// added 17-11-20
 };
 
 char csym[NSYM + 1] =
@@ -212,7 +219,7 @@ char csym[NSYM + 1] =
 	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&',':'								// modified by lzp 2017/12/12
 };
 
-#define MAXINS   10																		// added & modified by nanahka 17-11-14
+#define MAXINS   11 																	// modified by lzp 17/12/14
 char* mnemonic[MAXINS] =
 {
 	"LIT", "OPR", "LOD", "LODI", "STO", "STOI", "CAL", "INT", "JMP", "JPC", "EXT"        //added by lzp 2017/12/12
@@ -236,6 +243,15 @@ typedef struct
 	short address;
 	int   *ptr;							// added by nanahka 17-11-12
 } mask;
+
+typedef struct                                //added by lzp 17/12/14
+{
+	int t;                   //the condition of switch
+	int c;                   //the index of first ins of every case
+	int flag;                //to mark break
+	int cx_bre               //break cx
+}casetab;
+casetab *switchtab;
 
 FILE* infile;
 
