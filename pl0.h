@@ -1,12 +1,15 @@
 #include <stdio.h>
+#include <malloc.h>																				// added by nanahka 17-11-26
 
 #define TRUE	   1
 #define FALSE	   0
 
+#define NULL	   0
+
 #define NRW        18     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
-#define NSYM       12     // maximum number of symbols in array ssym and csym                    //modified by lzp 27/12/14
+#define NSYM       14     // maximum number of symbols in array ssym and csym
 #define MAXIDLEN   10     // length of identifiers
 #define MAXARYDIM  10	  // maximum number of dimensions of an array							// added by nanahka 17-11-12
 #define MAXARYVOL  200	  // maximum volume of a dimension of an array							// added by nanahka 17-11-12
@@ -15,8 +18,10 @@
 #define MAXADDRESS 32767  // maximum numerical constant											// modified by nanahka 17-11-20
 #define MAXLEVEL   32     // maximum depth of nesting block
 #define CXMAX      500    // size of code array
+//#define INITLIST   10	  // initial size of true/false lists									// added by nanahka 17-11-26
+//#define INCRELIST  5	  // increment of size of true/false lists
 
-#define MAXSYM     44    // maximum number of symbols                                             //modified by lzp 17/12/14
+#define MAXSYM     45    // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -26,6 +31,8 @@
 #define TABLE_BEGIN 0	  // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
 #define MAX_CASE 20       //maxinum cases in switsh                              added by lzp 17/12/14
 #define INCREMENT 5       //increment preparing for more space if necessary
+
+
 
 enum symtype
 {
@@ -51,7 +58,7 @@ enum symtype
 	SYM_SEMICOLON,
 	SYM_PERIOD,
 	SYM_BECOMES,
-    SYM_BEGIN,
+	SYM_BEGIN,
 	SYM_END,
 	SYM_IF,
 	SYM_THEN,
@@ -60,37 +67,39 @@ enum symtype
 	SYM_CONST,
 	SYM_VAR,
 	SYM_PROCEDURE,
-	SYM_NOT,
+	SYM_NOT,					// added 17-11-26
 	SYM_OR,
 	SYM_AND,
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
-	SYM_RETURN,            
+	SYM_RETURN,
 	SYM_EXIT,
-	SYM_SWITCH,
-	SYM_CASE,
-	SYM_BREAK,
+	SYM_SWITCH,                //added by lzp 17/12/15
+	SYM_CASE, 
 	SYM_DEFAULT,
+	SYM_BREAK,
+	SYM_CONTINUE,
 	SYM_COLON
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
-enum idtype
+enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY
+	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER
 };
 
 enum opcode
 {
-	LIT, OPR, LOD, LODI, STO, STOI, CAL, INT, JMP, JPC, EXT											// added by nanahka 17-11-14
-};                                                                       //added by lzp 
+	LIT, OPR, LOD, LODI, LODIL, STO, STOI, STOIL, CAL, INT, JMP, JPC, JND, JNDN	,EXT				// merged by nanahka 17-12-15
+};
 
 enum oprcode
 {
 	OPR_RET, OPR_NEG, OPR_ADD, OPR_MIN,
 	OPR_MUL, OPR_DIV, OPR_ODD, OPR_EQU,
 	OPR_NEQ, OPR_LES, OPR_LEQ, OPR_GTR,
-	OPR_GEQ, OPR_RTN                                //added by lzp 2017/12/10
+	OPR_GEQ, OPR_NOT, OPR_AND, OPR_OR,                       // added by nanahka 17-11-26
+	OPR_RTN														//added by lzp 17/12/15
 };
 
 
@@ -118,16 +127,16 @@ char* err_msg[] =
 /* 11 */    "Undeclared identifier.",
 /* 12 */    "Illegal assignment.",
 /* 13 */    "':=' expected.",
-/* 14 */    "There must be an identifier to follow the 'call'.",
-/* 15 */    "",																				// change to calling operator error
+/* 14 */    "There must be an identifier to follow the 'call'.",			// unused
+/* 15 */    "There must be an identifier to follow '&'.",										// merged by nanahka 17-12-15
 /* 16 */    "'then' expected.",
 /* 17 */    "'end' expected.",					// modified by nanahka 17-11-13
 /* 18 */    "'do' expected.",
 /* 19 */    "Incorrect symbol.",
-/* 20 */    "Relative operators expected.",
+/* 20 */    "Relop not admitted in const expression.", // modified by nanahka 17-11-26
 /* 21 */    "Procedure identifier can not be in an expression.",
 /* 22 */    "Missing ')'.",
-/* 23 */    "The symbol can not be followed by a factor.",
+/* 23 */    "The symbol can not be followed by an expression.",	// modified by nanahka 17-11-26
 /* 24 */    "The symbol can not be as the beginning of an expression.",
 /* 25 */    "The number is too great.",
 /* 26 */    "Missing ';'.",						// 26 added by nanahka 17-11-13
@@ -145,7 +154,7 @@ char* err_msg[] =
 /* 38 */	"'[' expected.",					// 38 added by nanahka 17-11-14
 /* 39 */	"Too many parameters in a procedure.",	// 39-42 added by nanahka 17-11-20
 /* 40 */	"Missing ',' or ')'.",
-/* 41 */	"Array type as parameter forbidden.",
+/* 41 */	"Array type as parameter forbidden.",				// unused
 /* 42 */	"Too few parameters in a procedure.",
 /* 43 */      "'(' expected.",
 /* 44 */      "there must be a variable in 'for' statement.",
@@ -154,7 +163,7 @@ char* err_msg[] =
 /* 47 */       "'else' expected.",
 /* 48 */       "another '|' is expected.",
 /* 49 */     "'while' expected .",
-/* 50 */    "there must be 'begin' in switch statement.",
+/* 50 */    "there must be 'begin' in switch statement.",                 //added by lzp 17/12/14
 /* 51 */    "'case','end',or 'default' is expected .",
 /* 52 */    "':' expected ."
 };
@@ -164,7 +173,7 @@ char ch;         // last character read
 int  sym;        // last symbol read
 char id[MAXIDLEN + 1]; // last identifier read
 int  num;        // last number read
-int  *ptr;		 // a link list containing dimensions of an array								// added by nanahka 17-11-12
+type  *ptr;		 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
 int  cc;         // character count
 int  ll;         // line length
 int  kk;
@@ -173,19 +182,13 @@ int  cx;         // index of current instruction to be generated.
 int  level = 0;
 int  tx = 0;
 int  tx_b = 0;	 // index of the beginning of current block in TABLE
-int true_out[4][10]={0};//短路计算，真值链 
-int false_out[4][10]={0};//短路计算，假值链 
-int true_count[4]={0};
-int false_count[4]={0};
-int condition_level=0;
-int tx_c=0;         //index of case table,pointing to the current case              //   added by lzp 17/12/14
-int maxcase = MAX_CASE;
-/*
-int cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
-int i_exit=0;    //to count the number of exit
-int cx_ret[MAX_RET];      //to mark the code of 'return'
-int i_ret=0;        //to count the number of 'return'
-*/
+int  *list[2] = {}; // list[0]: f_list, list[1]: t_list
+//int  *t_list;	 // array of code indices of JPCs to the TRUE address of a logical expr
+//int  *f_list;	 // array of code indices of JPCs to the FALSE address of a logical expr
+int  cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
+int  i_exit=0;    //to count the number of exit
+int  cx_ret[MAX_RET];      //to mark the code of 'return'
+int  i_ret=0;        //to count the number of 'return'
 
 char line[80];
 
@@ -194,43 +197,51 @@ instruction code[CXMAX];
 char* word[NRW + 1] =
 {
 	"", /* place holder */
-	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
+	"begin",  "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return" ,"exit", "switch", "case" ,"default"                          //add by lzp
+	"else", "for", "return", "exit", "switch", 
+	"case", "default", "break"                                                             //added by lzp 17/12/14
 };
 
 int wsym[NRW + 1] =
 {
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE,SYM_FOR,SYM_RETURN,SYM_EXIT , SYM_SWITCH, SYM_CASE,
-	SYM_BREAK, SYM_DEFAULT                                                                                    //added by lzp 2017/12/12
+	SYM_ELSE, SYM_FOR, SYM_RETURN, SYM_EXIT, SYM_SWITCH, SYM_CASE,
+	SYM_DEFAULT, SYM_BREAK
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_AMPERSAND, SYM_COLON																			// added 17-11-20
+	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON															// added by nanahka 17-11-26
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '&',':'								// modified by lzp 2017/12/12
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!', ':'						// added by nanahka 17-11-26
 };
 
-#define MAXINS   11 																	// modified by lzp 17/12/14
+#define MAXINS   15																				// modified by lzp 17-12-15
 char* mnemonic[MAXINS] =
 {
-	"LIT", "OPR", "LOD", "LODI", "STO", "STOI", "CAL", "INT", "JMP", "JPC", "EXT"        //added by lzp 2017/12/12
+	"LIT", "OPR", "LOD", "LODI", "LODIL", "STO", "STOI", "STOIL", "CAL", "INT", "JMP", "JPC", "JND", "JNDN",
+	"EXT"                                                       //added by lzp 17/12/15
 };
+
+struct type																						// added by nanahka 17-11-21
+{
+	int k; // kind of parameter (for procedure) / dimension (for array)
+	type *ptr;
+}
 
 typedef struct
 {
 	char name[MAXIDLEN + 1];
 	int  kind;
 	int  value;
-	int  *ptr;							// added by nanahka 17-11-12 for dimensions in an array
+	type *ptr;							// modified by nanahka 17-12-15
 } comtab;
 
 comtab table[TXMAX];
@@ -241,8 +252,13 @@ typedef struct
 	int   kind;
 	short level;
 	short address;
-	int   *ptr;							// added by nanahka 17-11-12
-} mask;
+	type  *ptr;							// modified by nanahka 17-12-15
+
+typedef struct																					// added by nanahka 17-11-21
+{
+	short level;
+	short address;
+} mask_val;
 
 typedef struct                                //added by lzp 17/12/14
 {
@@ -251,7 +267,7 @@ typedef struct                                //added by lzp 17/12/14
 	int flag;                //to mark break
 	int cx_bre               //break cx
 }casetab;
-casetab *switchtab;
+casetab *switchtab
 
 FILE* infile;
 
