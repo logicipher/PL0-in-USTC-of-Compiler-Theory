@@ -75,14 +75,14 @@ enum symtype
 	SYM_EXIT
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
-enum idtype
+enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY
+	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER
 };
 
 enum opcode
 {
-	LIT, OPR, LOD, LODI, STO, STOI, CAL, INT, JMP, JPC, JND, JNDN								// added by nanahka 17-11-14
+	LIT, OPR, LOD, LODI, LODS, LEA, STO, STOI, STOS, CAL, INT, JMP, JPC, JND, JNDN				// modified by nanahka 17-12-15
 };
 
 enum oprcode
@@ -118,8 +118,8 @@ char* err_msg[] =
 /* 11 */    "Undeclared identifier.",
 /* 12 */    "Illegal assignment.",
 /* 13 */    "':=' expected.",
-/* 14 */    "There must be an identifier to follow the 'call'.",
-/* 15 */    "",																				// change to calling operator error
+/* 14 */    "There must be an identifier to follow the 'call'.",			// unused
+/* 15 */    "There must be an identifier to follow '&'.",										// merged by nanahka 17-12-15
 /* 16 */    "'then' expected.",
 /* 17 */    "'end' expected.",					// modified by nanahka 17-11-13
 /* 18 */    "'do' expected.",
@@ -145,22 +145,25 @@ char* err_msg[] =
 /* 38 */	"'[' expected.",					// 38 added by nanahka 17-11-14
 /* 39 */	"Too many parameters in a procedure.",	// 39-42 added by nanahka 17-11-20
 /* 40 */	"Missing ',' or ')'.",
-/* 41 */	"Array type as parameter forbidden.",
+/* 41 */	"Non-array type/incorrect indices.",	// modified by nanahka 17-12-16
 /* 42 */	"Too few parameters in a procedure.",
-/* 43 */      "'(' expected.",
-/* 44 */      "there must be a variable in 'for' statement.",
-/* 45 */       "you must return a constant.",
-/* 46 */       "no more exit can be added.",
-/* 47 */       "'else' expected.",
-/* 48 */       "another '|' is expected."
+/* 43 */    "'(' expected.",
+/* 44 */    "there must be a variable in 'for' statement.",
+/* 45 */    "you must return a constant.",
+/* 46 */    "no more exit can be added.",
+/* 47 */    "'else' expected.",
+/* 48 */    "another '|' is expected.",
+/* 53 */	"The symbol can not be as the beginning of an lvalue expression.", // 53-54 added by nanahka 17-12-16
+/* 54 */	"Incorrect type as an lvalue expression."
 };
 
+typedef struct type comtyp;
 //////////////////////////////////////////////////////////////////////
 char ch;         // last character read
 int  sym;        // last symbol read
 char id[MAXIDLEN + 1]; // last identifier read
 int  num;        // last number read
-int  *ptr;		 // a link list containing dimensions of an array								// added by nanahka 17-11-12
+comtyp  *ptr;		 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
 int  cc;         // character count
 int  ll;         // line length
 int  kk;
@@ -186,7 +189,7 @@ char* word[NRW + 1] =
 	"", /* place holder */
 	"begin", /*"call",*/ "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else","for","return" ,"exit"
+	"else", "for", "return", "exit"
 };
 
 int wsym[NRW + 1] =
@@ -200,7 +203,7 @@ int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT																	// added by nanahka 17-11-26
+	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT															// added by nanahka 17-11-26
 };
 
 char csym[NSYM + 1] =
@@ -208,10 +211,16 @@ char csym[NSYM + 1] =
 	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!'						// added by nanahka 17-11-26
 };
 
-#define MAXINS   12																				// modified by nanahka 17-11-26
+#define MAXINS   14																				// modified by nanahka 17-12-15
 char* mnemonic[MAXINS] =
 {
-	"LIT", "OPR", "LOD", "LODI", "STO", "STOI", "CAL", "INT", "JMP", "JPC", "JND", "JNDN"
+	"LIT", "OPR", "LOD", "LODI", "LODIL", "STO", "STOI", "STOIL", "CAL", "INT", "JMP", "JPC", "JND", "JNDN"
+};
+
+struct type																				// added by nanahka 17-12-15
+{
+	int k; // kind of parameter (for procedure) / dimension (for array)
+	struct type *ptr;
 };
 
 typedef struct
@@ -219,7 +228,7 @@ typedef struct
 	char name[MAXIDLEN + 1];
 	int  kind;
 	int  value;
-	int  *ptr;							// added by nanahka 17-11-12 for dimensions in an array
+	comtyp *ptr;							// modified by nanahka 17-12-15
 } comtab;
 
 comtab table[TXMAX];
@@ -230,14 +239,14 @@ typedef struct
 	int   kind;
 	short level;
 	short address;
-	int   *ptr;							// added by nanahka 17-11-12
+	comtyp  *ptr;							// modified by nanahka 17-12-15
 } mask;
 
-//typedef struct																					// added by nanahka 17-11-21
-//{
-//	short level;
-//	short address;
-//} mask_val;
+typedef struct																					// added by nanahka 17-11-21
+{
+	short level;
+	short address;
+} mask_val;
 
 FILE* infile;
 
