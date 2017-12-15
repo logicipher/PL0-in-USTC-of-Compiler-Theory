@@ -554,7 +554,62 @@ int factor(symset fsys, symset ksys, int CONST_CHECK)
 					}
 					break;
 				case ID_PROCEDURE:
-					error(21); // Procedure identifier can not be in an expression.
+					getsym();                                                             //added by lzp 2017/12/10
+					mk = (mask*)&table[i];
+					int n = *mk->ptr;
+					if (sym == SYM_LPAREN)
+					{
+						getsym();
+						set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
+						set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
+						if (n)
+						{
+							if (sym == SYM_RPAREN)
+							{
+								error(42); // Too few parameters in a procedure.
+							}
+							else
+							{
+								test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
+							}
+						}
+						while (inset(sym, exp_first_sys) && n--)
+						{
+							expression(set, set1, UNCONST_EXPR);
+							if (sym == SYM_COMMA)
+							{
+								getsym();
+							}
+							else if (sym == SYM_RPAREN)
+							{
+								getsym();
+								if (n)
+								{
+									error(42); // Too few parameters in a procedure.
+								}
+								break;
+							}
+							else
+							{
+								error(40); // Missing ',' or ')'.
+							}
+						} // while
+						destroyset(set);
+						destroyset(set1);
+						if (inset(sym, exp_first_sys))
+						{
+							error(39); // Too many parameters in a procedure.
+						}
+						if (sym == SYM_RPAREN)
+						{
+							getsym();
+						}
+					} // if
+					if (!n)
+					{
+						gen(CAL, level - mk->level, mk->address);
+					}
+					//error(21); // Procedure identifier can not be in an expression.
 					break;
 				case ID_ARRAY:																	// added by nanahka 17-11-15
 					if (CONST_CHECK)
@@ -1219,6 +1274,146 @@ void statement(symset fsys, symset ksys)
 		gen(JMP, 0, cx1);
 		code[cx2].a = cx;
 	}
+	else if (sym == SYM_DO)                                                //added by lzp 2017/12/12 
+	{//do-while statement
+		getsym();
+		cx1 = cx;
+		statement(fsys, ksys);
+		if (sym != SYM_WHILE)
+		{
+			error(49);                 //missing 'while' in do-while
+		}
+		else
+			getsym();
+		if (sym != SYM_LPAREN)
+		{
+			error(43);                        //missing '('
+		}
+		else
+			getsym();
+		set1 = createset(SYM_RPAREN, SYM_NULL);
+		set = uniteset_mul(ksys, SYM_SEMICOLON, SYM_NULL);
+		condition(set1, set);
+		if (sym == SYM_RPAREN)
+		{
+			getsym();
+		}
+		else
+		{
+			error(22);            //missing ')'
+		}
+		if (sym == SYM_SEMICOLON)
+		{
+			getsym();
+		}
+		else
+		{
+			error(26);            //missing ';'
+		}
+		cx2 = cx;
+		gen(JPC, 0, 0);
+		gen(JMP, 0, cx1);
+		code[cx2].a = cx;
+
+	}//else if
+	else if (sym == SYM_BREAK)
+	{
+
+	}
+	else if (sym == SYM_SWITCH)
+	{
+		getsym();
+		if (sym != SYM_RPAREN)
+		{
+			error(43);           //missing '('
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		set = createset(SYM_RPAREN, SYM_BEGIN, SYM_NULL);
+		set1 = uniteset_mul(set, SYM_CASE, SYM_BEGIN, ksys);
+		expression(set, set1, UNCONST_EXPR);
+		if (sym != SYM_RPAREN)
+		{
+			error(22);                       //missing ')'
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		if (sym != SYM_BEGIN)
+		{
+			error(50);              //missing 'begin'
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
+		{
+			error(51);              //missing 'case','end' or 'default'
+		}//if
+		set = createset(SYM_COLON, SYM_NULL);
+		set1 = uniteset_mul(ksys, set, stat_first_sys);
+		set2 = createset_mul(SYM_CASE, SYM_END, SYM_NULL);
+		set3 = uniteset_mul(ksys, set2, stat_first_sys);
+		int tmp;
+		int de_break;         //mark whether there is 'break' after 'default'
+		int cx_br;
+		while (sym != SYM_END)
+		{
+			if (tx_c == maxcase)
+			{
+				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
+				maxcase += INCREMENT;
+			}//if 
+			tmp = sym;                                     //store the keyword 'case' or 'default'
+			if (sym != SYM_DEFAULT) {
+				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
+			}//if
+			if (sym != SYM_COLON)
+			{
+				error(52);              //missing ':'
+			}//if
+			else
+			{
+				getsym();
+			}//else
+			if (tmp != SYM_DEFAULT)
+			{
+				switchtab[tx_c].c = cx;
+			}//if
+			else
+			{
+				cx1 = cx;
+			}//else
+
+			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
+			{
+				if (sym == SYM_BREAK)
+				{
+					if (tmp != SYM_DEFAULT)
+					{
+						switchtab[tx_c].flag = TRUE;      //break
+						switchtab[tx_c++].cx_bre = cx;
+					}//if
+					else
+					{
+						de_break = TRUE;
+						cx_br = cx;
+					}//else
+				}//if
+				statement(set2, set3);
+			}//while2
+			 //prepare for more case
+		}//while1
+		int i;
+		for (i = 0; i < tx_c; i++)
+		{
+			gen();
+		}
+	}//else if
 	else if(sym=SYM_FOR)
 	{//for statement
 		getsym();
@@ -1259,45 +1454,37 @@ void statement(symset fsys, symset ksys)
 		gen(JMP,0,cx4);
 		code[cx2].a=cx;
 	}
-	else if(sym==SYM_RETURN)
+	else if (sym == SYM_RETURN)
 	{
 		getsym();
-		set1=createset(SYM_SEMICOLON,SYM_NULL);
-		set=uniteset_mul(ksys,set1,stat_first_sys,0);
-		expression(set1,set, UNCONST_EXPR);
-		if(sym!=SYM_SEMICOLON)
-		{
+		set1 = createset(SYM_SEMICOLON, SYM_NULL);
+		set = uniteset_mul(ksys, set1, stat_first_sys, SYM_SEMICOLON, 0);
+		expression(set1, set);
+		if (sym != SYM_SEMICOLON)
 			error(26);          //missing ';'
-		}
-		else
-		{
-			getsym();
-		}
-		gen(OPR,0,OPR_RET);
-		cx_ret[i_ret]=cx;
-		gen(JMP,0,0);
+		gen(OPR, 0, OPR_RTN);
+		getsym();
+		//cx_ret[i_ret]=cx;
+		//gen(JMP,0,0);
 	}
-	else if(sym==SYM_EXIT)
+	else if (sym == SYM_EXIT)
 	{
 		getsym();
-		if(sym!=SYM_LPAREN)
-			error(43);         //'(' is needed
+		if (sym != SYM_LPAREN)
+			error(43);       //'(' is needed
 		getsym();
-		i=position(id, TABLE_BEGIN);
-		if(table[i].kind!=ID_CONSTANT)
+		i = position(id);
+		if (table[i].kind != ID_CONSTANT)
 			error(45);          //'exit' have to return a constant
 		getsym();
-		if(sym!=SYM_LPAREN)
+		if (sym != SYM_LPAREN)
 			error(22);           //missing ')'
 		getsym();
-		if(sym!=SYM_SEMICOLON)
-			error(10);           //missing ';'
-		gen(LIT,0,table[i].value);
-		gen(OPR,0,OPR_RET);
-		if(i_exit=MAX_EXIT)
-			error(46);          //this is the maximum of 'exit'
-		cx_exit[i_exit++]=cx;
-		gen(JMP,0,0);
+		if (sym != SYM_SEMICOLON)
+			error(10);          //missing ';'
+		gen(LIT, 0, table[i].value);
+		gen(EXT, 0, 0);
+		getsym();
 	}
 
 
@@ -1649,6 +1836,11 @@ void interpret()
 				top--;
 				stack[top] = stack[top] || stack[top + 1];
 				break;
+			case OPR_RTN:                           //added by lzp 2017/12/10
+				stack[b] = stack[top];
+				top = b;
+				pc = stack[top + 2];
+				b = stack[top + 1];
 			} // switch
 			break;
 		case LOD:
@@ -1703,6 +1895,9 @@ void interpret()
 		case JNDN:																				// added by nanahka 17-11-26
 			if (stack[top] != 0)
 				pc = i.a;
+			break;
+		case EXT:
+			pc = cx;                        //added by lzp,instruction jump to the last one
 			break;
 		} // switch
 	}
