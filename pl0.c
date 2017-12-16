@@ -1482,7 +1482,7 @@ void statement(symset fsys, symset ksys)
 	{ // while statement
 		cltab[cltop].c = head;                               //store the head when go in a new circulation
 		cltab[cltop++].ty = env;                               //store environment
-		env = ENV_WHLIE;
+		env = ENV_WHILE;
 		cx1 = cx;
 		head = cx;
 		getsym();
@@ -1575,7 +1575,7 @@ void statement(symset fsys, symset ksys)
 		cltop = cltop - count - 1;
 		count = 0;
 		head = cltab[cltop].c;
-		env = clyab[cltop].ty;
+		env = cltab[cltop].ty;
 	}//else if
 	else if (sym == SYM_BREAK)                                //added by lzp 17/12/16
 	{
@@ -1644,7 +1644,7 @@ void statement(symset fsys, symset ksys)
 		{
 			getsym();
 		}
-		gen(JMP, 0, table[i].vlaue);                        //junp instruction
+		gen(JMP, 0, table[i].value);                        //junp instruction
 	}
 	else if (sym == SYM_SWITCH)                                         //modified by lzp 17/12/16
 	{
@@ -1684,7 +1684,7 @@ void statement(symset fsys, symset ksys)
 		}//if
 		set = createset(SYM_COLON, SYM_NULL);
 		set1 = uniteset_mul(ksys, set, stat_first_sys);
-		set2 = createset_mul(SYM_CASE, SYM_END, SYM_NULL);
+		set2 = createset(SYM_CASE, SYM_END, SYM_NULL);
 		set3 = uniteset_mul(ksys, set2, stat_first_sys);
 		int tmp;
 		int de_break;         //mark whether there is 'break' after 'default'
