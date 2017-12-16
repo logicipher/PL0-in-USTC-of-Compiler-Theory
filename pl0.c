@@ -2116,16 +2116,6 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	//destroyset(set1);
 	//destroyset(set);
 	gen(OPR, 0, OPR_RET); // return
-	while (cx_ret[i_ret]!=0)
-	{
-		code[cx_ret[i]].a=cx;
-		cx_ret[i++]=0;
-	}
-	i=0;
-	while(cx_exit[i++]!=0)
-	{                                           //all 'exit' gen a instruction to jump to this end
-		code[cx_exit[i-1]].a = cx;
-	}
 	test(ksys, ksys, 8); // Follow the statement is an incorrect symbol.						// modified by nanahka 17-11-20
 	listcode(cx0, cx);
 } // block
@@ -2305,7 +2295,7 @@ void interpret()
 				pc = i.a;
 			break;
 		case EXT:
-			pc = cx;                        //added by lzp,instruction jump to the last one
+			pc = 0;                        //added by lzp,instruction jump to the last one
 			break;
 		case JET:                           //added by lzp 17/12/16,if the top equals to i.l,jump to i.a
 			if (stack[top] == i.l)
