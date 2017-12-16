@@ -297,6 +297,8 @@ typedef struct                                //added by lzp 17/12/14
 	int cx_bre;               //break cx
 }casetab;
 casetab *switchtab;
+int tx_c = 0;
+int maxcase =MAX_CASE;
 
 typedef struct
 {
