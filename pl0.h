@@ -75,7 +75,7 @@ enum symtype
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
 	SYM_RETURN,
-	SYM_EXIT£¬
+	SYM_EXIT,
 	SYM_SWITCH,                //added by lzp 17/12/15
 	SYM_CASE,
 	SYM_DEFAULT,
@@ -87,7 +87,7 @@ enum symtype
 
 enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER£¬ ID_LABEL                      //added by lzp 17/12/16
+	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                      //added by lzp 17/12/16
 };
 
 enum opcode
