@@ -1819,7 +1819,7 @@ void statement(symset fsys, symset ksys)
 		getsym();
 		set1 = createset(SYM_SEMICOLON, SYM_NULL);
 		set = uniteset_mul(ksys, set1, stat_first_sys, SYM_SEMICOLON, 0);
-		expression(set1, set);
+		expression(set1, set,UNCONST_EXPR);
 		if (sym != SYM_SEMICOLON)
 			error(26);          //missing ';'
 		gen(OPR, 0, OPR_RTN);
@@ -1833,16 +1833,14 @@ void statement(symset fsys, symset ksys)
 		if (sym != SYM_LPAREN)
 			error(43);       //'(' is needed
 		getsym();
-		i = position(id);
-		if (table[i].kind != ID_CONSTANT)
-			error(45);          //'exit' have to return a constant
-		getsym();
+		set = createset(SYM_SEMICOLON, SYM_NULL);
+		set1 = uniteset_mul(set, ksys, stat_first_sys);
+	    expression(set, set1, UNCONST_EXPR);
 		if (sym != SYM_LPAREN)
 			error(22);           //missing ')'
 		getsym();
 		if (sym != SYM_SEMICOLON)
 			error(10);          //missing ';'
-		gen(LIT, 0, table[i].value);
 		gen(EXT, 0, 0);
 		getsym();
 	}
