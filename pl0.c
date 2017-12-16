@@ -2226,8 +2226,9 @@ void interpret()
 				stack[top] = stack[top] || stack[top + 1];
 				break;
 			case OPR_RTN:                           //added by lzp 2017/12/10
-				stack[b] = stack[top];
+				i.l = stack[top];
 				top = b;
+			        stack[top] = i.l;
 				pc = stack[top + 2];
 				b = stack[top + 1];
 			} // switch
