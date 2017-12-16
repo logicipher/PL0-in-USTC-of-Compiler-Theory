@@ -58,7 +58,7 @@ symset uniteset(symset s1, symset s2)
 	return s;
 } // uniteset
 
-symset uniteset_mul(symset s1, .../* NULL */)
+symset uniteset_mul(symset s1, .../* NULL */)													// added by nanahka 17-11-13
 {
 	va_list list;
 	symset s = s1;
@@ -96,7 +96,7 @@ void setinsert(symset s, int elem)
 	p->next = q;
 } // setinsert
 
-void setinsert_mul(symset s, .../* SYM_NULL */)
+void setinsert_mul(symset s, .../* SYM_NULL */)													// added by nanahka 17-11-20
 {
 	va_list list;
 	int elem;
@@ -112,7 +112,7 @@ void setinsert_mul(symset s, .../* SYM_NULL */)
 	va_end(list);
 }
 
-symset expandset(symset s, .../* SYM_NULL */)
+symset expandset(symset s, .../* SYM_NULL */)													// added by nanahka 17-11-13
 {
 	va_list list;
 	symset p;
@@ -133,6 +133,51 @@ symset expandset(symset s, .../* SYM_NULL */)
 
 	return uniteset(s, p);
 } // expandset
+
+void deleteset(symset s, .../* SYM_NULL */)														// added by nanahka 17-11-21
+{
+	va_list list;
+	symset p;
+	int elem;
+
+	p = (snode*) malloc(sizeof(snode));
+	p->next = NULL;
+
+	va_start(list, s);
+	elem = va_arg(list, int);
+	while (elem)
+	{
+		setinsert(p, elem);
+		elem = va_arg(list, int);
+	}
+
+	snode *s0, *q;
+	s0 = s;
+	s = s->next;
+	q = p->next;
+
+	while (s && q)
+	{
+		if (s->elem == q->elem)
+		{
+			s0->next = s->next;
+			s->next = NULL;
+			destroyset(s);
+			s = s0->next;
+			q = q->next;
+		}
+		else if (s->elem > q->elem)
+		{
+			q = q->next;
+		}
+		else
+		{
+			s0 = s;
+			s = s->next;
+		}
+	}
+	destroyset(p);
+}
 
 symset createset(int elem, .../* SYM_NULL */)
 {

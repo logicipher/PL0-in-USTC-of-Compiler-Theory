@@ -4,8 +4,6 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NULL	   0
-
 #define NRW        20     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
@@ -21,7 +19,7 @@
 //#define INITLIST   10	  // initial size of true/false lists									// added by nanahka 17-11-26
 //#define INCRELIST  5	  // increment of size of true/false lists
 
-#define MAXSYM     46    // maximum number of symbols
+#define MAXSYM     46     // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -33,7 +31,9 @@
 #define INCREMENT 5       //increment preparing for more space if necessary
 #define MAX_CONTROL 50          //maxinum control statement
 
- 
+
+#define PMT_PROC   1	  // indicate that this name is a procedure and a parameter of a procedure	// added by nanahka 17-12-16
+#define NON_PMT_PROC 0	  // otherwise
 
 enum symtype
 {
@@ -75,9 +75,9 @@ enum symtype
 	SYM_ELSE,
 	SYM_FOR,                     //added by lzp
 	SYM_RETURN,
-	SYM_EXIT,
+	SYM_EXIT£¬
 	SYM_SWITCH,                //added by lzp 17/12/15
-	SYM_CASE, 
+	SYM_CASE,
 	SYM_DEFAULT,
 	SYM_BREAK,
 	SYM_CONTINUE,
@@ -87,13 +87,13 @@ enum symtype
 
 enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                    //added by lzp 17/12/16
+	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER£¬ ID_LABEL                      //added by lzp 17/12/16
 };
 
 enum opcode
 {
-	LIT, OPR, LOD, LODI, LODIL, STO, STOI, STOIL, CAL, INT, JMP, JPC, JND, JNDN	,EXT,				// merged by nanahka 17-12-15
-	JET
+	LIT, OPR, LOD, LODI, LODS, LEA, STO, STOI, STOS,
+	CAL, CALS, INT, JMP, JPC, JND, JNDN, EXT, JET				// modified by nanahka 17-12-15
 };
 
 enum oprcode
@@ -101,19 +101,20 @@ enum oprcode
 	OPR_RET, OPR_NEG, OPR_ADD, OPR_MIN,
 	OPR_MUL, OPR_DIV, OPR_ODD, OPR_EQU,
 	OPR_NEQ, OPR_LES, OPR_LEQ, OPR_GTR,
-	OPR_GEQ, OPR_NOT, OPR_AND, OPR_OR,                       // added by nanahka 17-11-26
-	OPR_RTN														//added by lzp 17/12/15
+	OPR_GEQ, OPR_NOT, OPR_AND, OPR_OR,                               // added by nanahka 17-11-26
+	OPR_RTN
 };
 
 enum environment                                           //added by lzp 17/12/16
 {
-	ENV_NULL,ENV_DO, ENV_WHILE ,ENV_FOR, ENV_SWITCH                                               //four kind env:do-while,while,for,switch
+	ENV_NULL, ENV_DO, ENV_WHILE, ENV_FOR, ENV_SWITCH                                               //four kind env:do-while,while,for,switch
 };
 
 enum control                                                        //added by lzp 17/12/16
 {
 	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet                          
 };
+
 
 typedef struct
 {
@@ -166,27 +167,34 @@ char* err_msg[] =
 /* 38 */	"'[' expected.",					// 38 added by nanahka 17-11-14
 /* 39 */	"Too many parameters in a procedure.",	// 39-42 added by nanahka 17-11-20
 /* 40 */	"Missing ',' or ')'.",
-/* 41 */	"Array type as parameter forbidden.",				// unused
+/* 41 */	"Non-array type/incorrect indices.",	// modified by nanahka 17-12-16
 /* 42 */	"Too few parameters in a procedure.",
-/* 43 */      "'(' expected.",
-/* 44 */      "there must be a variable in 'for' statement.",
-/* 45 */       "you must return a constant.",
-/* 46 */       "no more exit can be added.",
-/* 47 */       "'else' expected.",
-/* 48 */       "another '|' is expected.",
+/* 43 */    "'(' expected.",
+/* 44 */    "there must be a variable in 'for' statement.",
+/* 45 */    "you must return a constant.",
+/* 46 */    "no more exit can be added.",
+/* 47 */    "'else' expected.",
+/* 48 */    "another '|' is expected.",
 /* 49 */     "'while' expected .",
 /* 50 */    "there must be 'begin' in switch statement.",                 //added by lzp 17/12/14
 /* 51 */    "'case','end',or 'default' is expected .",
 /* 52 */    "':' expected .",
-/* 53 */    "procedure can not be in a const factor."
+/* 53 */	"The symbol can not be as the beginning of an lvalue expression.", // 53-56 added by nanahka 17-12-16
+/* 54 */	"Incorrect type as an lvalue expression.",
+/* 55 */	"The symbol can not be as the beginning of a function call.",
+/* 56 */	"Non-procedure type/incorrect parameter types.",
+/* 57 */    "procedure can not be in a const factor.",
+/* 58 */    "label must be followed by a statement.",
+/* 59 */    "nuknown label."
 };
 
+typedef struct type comtyp;
 //////////////////////////////////////////////////////////////////////
 char ch;         // last character read
 int  sym;        // last symbol read
 char id[MAXIDLEN + 1]; // last identifier read
 int  num;        // last number read
-type  *ptr;		 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
+comtyp  *ptr;		 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
 int  cc;         // character count
 int  ll;         // line length
 int  kk;
@@ -198,10 +206,6 @@ int  tx_b = 0;	 // index of the beginning of current block in TABLE
 int  *list[2] = {}; // list[0]: f_list, list[1]: t_list
 //int  *t_list;	 // array of code indices of JPCs to the TRUE address of a logical expr
 //int  *f_list;	 // array of code indices of JPCs to the FALSE address of a logical expr
-int  cx_exit[MAX_EXIT];     //to mark the code of 'exit'     ADDED BY LZP
-int  i_exit=0;    //to count the number of exit
-int  cx_ret[MAX_RET];      //to mark the code of 'return'
-int  i_ret=0;        //to count the number of 'return'
 
 int env;          //mark the type of environment where break,continue is                       //added by lzp 17/12/16
 int head;
@@ -214,10 +218,10 @@ instruction code[CXMAX];
 char* word[NRW + 1] =
 {
 	"", /* place holder */
-	"begin",  "const", "do", "end","if",												// deleted by nanahka 17-11-20
+	"begin", "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
-	"else", "for", "return", "exit", "switch", 
-	"case", "default", "break", "continue", "goto"                                                             //added by lzp 17/12/14
+	"else", "for", "return", "exit", "switch",
+	"case", "default", "break", "continue", "goto"                                                             //added by lzp 17/12/16
 };
 
 int wsym[NRW + 1] =
@@ -232,34 +236,47 @@ int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON															// added by nanahka 17-11-26
+	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON															// added by lzp 17/12/16
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!', ':'						// added by nanahka 17-11-26
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!',':'						// added by nanahka 17-11-26
 };
 
-#define MAXINS   16																				// modified by lzp 17-12-16
+#define MAXINS   18																			// modified by lzp 17/12/16
 char* mnemonic[MAXINS] =
 {
-	"LIT", "OPR", "LOD", "LODI", "LODIL", "STO", "STOI", "STOIL", "CAL", "INT", "JMP", "JPC", "JND", "JNDN",
-	"EXT", "JET"                                                     //added by lzp 17/12/16
+	"LIT", "OPR", "LOD", "LODI", "LODIL", "LEA", "STO", "STOI", "STOIL",
+	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "EXT", "JET"                          //added by lzp 17/12/16
 };
 
-struct type																						// added by nanahka 17-11-21
+struct type																				// added by nanahka 17-12-15
 {
 	int k; // kind of parameter (for procedure) / dimension (for array)
-	type *ptr;
-}
+	struct type *ptr;
+};
+
+typedef struct																					// added by nanahka 17-12-16
+{
+	short pt;
+	short size;
+	struct type *ptr;
+} mask_tp;
+
+//typedef struct																					// modified by nanahka 17-12-16
+//{
+//	short pt;
+//	short size;
+//} mask_k;
 
 typedef struct
 {
 	char name[MAXIDLEN + 1];
 	int  kind;
 	int  value;
-	type *ptr;							// modified by nanahka 17-12-15
-}comtab;
+	comtyp *ptr;							// modified by nanahka 17-12-15
+} comtab;
 
 comtab table[TXMAX];
 
@@ -269,13 +286,8 @@ typedef struct
 	int   kind;
 	short level;
 	short address;
-	type  *ptr;							// modified by nanahka 17-12-15
-}mask;
-typedef struct																					// added by nanahka 17-11-21
-{
-	short level;
-	short address;
-} mask_val;
+	comtyp  *ptr;							// modified by nanahka 17-12-15
+} mask;
 
 typedef struct                                //added by lzp 17/12/14
 {
@@ -292,11 +304,8 @@ typedef struct
 	int c;                     //cx of the stat
 } col;
 col cltab[MAX_CONTROL];             //max depth of circulation
-int cltop=0;                      //top of cltab
+int cltop = 0;                      //top of cltab
 int count = 0;                   //count num of break and continue
-
-
-
 
 FILE* infile;
 
