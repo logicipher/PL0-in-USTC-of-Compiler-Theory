@@ -1629,7 +1629,7 @@ void statement(symset fsys, symset ksys)
 		getsym();
 		if (i = position(id, TABLE_BEGIN))
 		{
-			error();                                        //undeclared label
+			error(59);                                        //undeclared label
 			getsym();
 		}
 		else
