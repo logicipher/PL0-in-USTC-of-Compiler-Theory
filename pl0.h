@@ -6,7 +6,7 @@
 
 #define NULL	   0
 
-#define NRW        18     // number of reserved words
+#define NRW        20     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
 #define NSYM       14     // maximum number of symbols in array ssym and csym
@@ -21,7 +21,7 @@
 //#define INITLIST   10	  // initial size of true/false lists									// added by nanahka 17-11-26
 //#define INCRELIST  5	  // increment of size of true/false lists
 
-#define MAXSYM     45    // maximum number of symbols
+#define MAXSYM     46    // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -31,8 +31,9 @@
 #define TABLE_BEGIN 0	  // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
 #define MAX_CASE 20       //maxinum cases in switsh                              added by lzp 17/12/14
 #define INCREMENT 5       //increment preparing for more space if necessary
+#define MAX_CONTROL 50          //maxinum control statement
 
-
+ 
 
 enum symtype
 {
@@ -80,17 +81,19 @@ enum symtype
 	SYM_DEFAULT,
 	SYM_BREAK,
 	SYM_CONTINUE,
-	SYM_COLON
+	SYM_COLON,
+	SYM_GOTO
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER
+	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                    //added by lzp 17/12/16
 };
 
 enum opcode
 {
-	LIT, OPR, LOD, LODI, LODIL, STO, STOI, STOIL, CAL, INT, JMP, JPC, JND, JNDN	,EXT				// merged by nanahka 17-12-15
+	LIT, OPR, LOD, LODI, LODIL, STO, STOI, STOIL, CAL, INT, JMP, JPC, JND, JNDN	,EXT,				// merged by nanahka 17-12-15
+	JET
 };
 
 enum oprcode
@@ -102,6 +105,15 @@ enum oprcode
 	OPR_RTN														//added by lzp 17/12/15
 };
 
+enum environment                                           //added by lzp 17/12/16
+{
+	ENV_NULL,ENV_DO, ENV_WHILE ,ENV_FOR, ENV_SWITCH                                               //four kind env:do-while,while,for,switch
+};
+
+enum control                                                        //added by lzp 17/12/16
+{
+	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet                          
+};
 
 typedef struct
 {
@@ -165,7 +177,8 @@ char* err_msg[] =
 /* 49 */     "'while' expected .",
 /* 50 */    "there must be 'begin' in switch statement.",                 //added by lzp 17/12/14
 /* 51 */    "'case','end',or 'default' is expected .",
-/* 52 */    "':' expected ."
+/* 52 */    "':' expected .",
+/* 53 */    "procedure can not be in a const factor."
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -190,6 +203,10 @@ int  i_exit=0;    //to count the number of exit
 int  cx_ret[MAX_RET];      //to mark the code of 'return'
 int  i_ret=0;        //to count the number of 'return'
 
+int env;          //mark the type of environment where break,continue is                       //added by lzp 17/12/16
+int head;
+int tail;         //mark beginning and end of circulation
+
 char line[80];
 
 instruction code[CXMAX];
@@ -200,7 +217,7 @@ char* word[NRW + 1] =
 	"begin",  "const", "do", "end","if",												// deleted by nanahka 17-11-20
 	"odd", "procedure", "then", "var", "while",
 	"else", "for", "return", "exit", "switch", 
-	"case", "default", "break"                                                             //added by lzp 17/12/14
+	"case", "default", "break", "continue", "goto"                                                             //added by lzp 17/12/14
 };
 
 int wsym[NRW + 1] =
@@ -208,7 +225,7 @@ int wsym[NRW + 1] =
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
 	SYM_ELSE, SYM_FOR, SYM_RETURN, SYM_EXIT, SYM_SWITCH, SYM_CASE,
-	SYM_DEFAULT, SYM_BREAK
+	SYM_DEFAULT, SYM_BREAK,SYM_CONTINUE, SYM_GOTO                                                      //added by lzp 17/12/16
 };
 
 int ssym[NSYM + 1] =
@@ -223,11 +240,11 @@ char csym[NSYM + 1] =
 	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!', ':'						// added by nanahka 17-11-26
 };
 
-#define MAXINS   15																				// modified by lzp 17-12-15
+#define MAXINS   16																				// modified by lzp 17-12-16
 char* mnemonic[MAXINS] =
 {
 	"LIT", "OPR", "LOD", "LODI", "LODIL", "STO", "STOI", "STOIL", "CAL", "INT", "JMP", "JPC", "JND", "JNDN",
-	"EXT"                                                       //added by lzp 17/12/15
+	"EXT", "JET"                                                     //added by lzp 17/12/16
 };
 
 struct type																						// added by nanahka 17-11-21
@@ -242,7 +259,7 @@ typedef struct
 	int  kind;
 	int  value;
 	type *ptr;							// modified by nanahka 17-12-15
-} comtab;
+}comtab;
 
 comtab table[TXMAX];
 
@@ -253,7 +270,7 @@ typedef struct
 	short level;
 	short address;
 	type  *ptr;							// modified by nanahka 17-12-15
-
+}mask;
 typedef struct																					// added by nanahka 17-11-21
 {
 	short level;
@@ -268,6 +285,18 @@ typedef struct                                //added by lzp 17/12/14
 	int cx_bre               //break cx
 }casetab;
 casetab *switchtab
+
+typedef struct
+{
+	int ty;                     //type
+	int c;                     //cx of the stat
+} col;
+col cltab[MAX_CONTROL];             //max depth of circulation
+int cltop=0;                      //top of cltab
+int count = 0;                   //count num of break and continue
+
+
+
 
 FILE* infile;
 
