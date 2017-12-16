@@ -274,13 +274,17 @@ void test(symset s1, symset s2, int n)
 //////////////////////////////////////////////////////////////////////
 int dx;  // data allocation index		// accumulated offset in current AR
 
-void free_ptr(comtyp *ptr)																		// added by nanahka 17-12-15
+void free_ptr(comtyp *ptr)																		// modified by nanahka 17-12-17
 {
 	if (ptr)
 	{
-		while ( (ptr[0].k)--)
+		while ( (ptr->k)--)
 		{
-			free_ptr(ptr[ptr[0].k + 1].ptr);
+			free_ptr(ptr[ptr->k + 1].ptr);
+		}
+		if (ptr->ptr)
+		{
+			free(ptr->ptr);
 		}
 		free(ptr);
 	}
@@ -292,11 +296,14 @@ void free_ptr(comtyp *ptr)																		// added by nanahka 17-12-15
 // const		id			enter(kind)		--------value(stored in TABLE)---------	NULL
 // var			id			enter(kind)		level		dx							NULL
 // pointer		id			enter(kind)		level		dx							NULL/same as array(subtype array_pointer)
-// procedure	id			enter(kind)		level		cx(set by block(), line752)	ptr[0].size is the number of its parameters,
-//																					and ptr[1..ptr[0].size] are there types. If
-//																					the procedure is a parameter, then ptr[0].pt
-//																					== PMT_PROC and it uses CALS rather than CAL.
-// array		id			enter(kind)		level		dx ~ dx + ptr[0] - 1		ptr[1..ptr[0].size] are volumes
+// procedure	id			enter(kind)		level		cx(set by block(), line752)	1. ptr[0].k is the number of its parameters,
+//																					and ptr[1..ptr[0].k] are there types.
+//																					2. If the procedure is a parameter, then
+//																					ptr->ptr[0].k == PMT_PROC and it uses CALS
+//																					rather than CAL.
+//																					3. ptr->ptr[1].k is the type of its
+//																					return value.
+// array		id			enter(kind)		level		dx ~ dx + ptr[0] - 1		ptr[1..ptr[0].k] are volumes
 //																					 of the dimensions
 //*: Since all the entries created within a procedure will be released after the
 //  declaration of the procedure, except for the name of the procedure itself, all
@@ -310,7 +317,7 @@ void free_ptr(comtyp *ptr)																		// added by nanahka 17-12-15
 //*: a type is a binary pair of (kind, ptr), thus ptr must be a pointer to such pairs,
 //  so that in the ptr of a procedure the types of its parameters can be stored.
 //////////////////////////////////////////////////////////////////////
-// enter object(constant, variable or procedre) into table.
+// enter object(constant, variable or procedure) into table.
 void enter(int kind)
 {
 	int position(char* id, int tx_beg);
@@ -361,7 +368,7 @@ void enter(int kind)
 		ptr = 0;
 		break;
 	case ID_LABEL:                           //added by lzp 17/12/16
-		table[tx].value = cx;                   //label pointing to a ins
+		table[tx].value = cx;                   //label pointing to an ins
 		break;
 	} // switch
 } // enter
@@ -611,9 +618,9 @@ void subprocdeclaration(symset fsys, symset ksys)												// added by nanahka
 		getsym();
 	}
 	ptr = (comtyp*)malloc( (n + 1) * sizeof(comtyp));
-	mask_tp *mp = (mask_tp*)ptr;
-	mp->pt = PMT_PROC;
-	mp->size = n;
+	ptr->ptr = (comtyp*)malloc(2 * sizeof(comtyp));
+	ptr->ptr[0].k = PMT_PROC;
+	ptr->k = n;
 	while (n--)
 	{
 		ptr[n + 1].k = pmt[n + 1].k;
@@ -651,11 +658,11 @@ void mergelist(int *dst, int *src)
 }
 
 //////////////////////////////////////////////////////////////////////
-int getarrayaddr(int tab_ind, symset fsys, symset ksys)
+int getarrayaddr(int i, symset fsys, symset ksys)
 {
 	symset set, set1;
 
-	mask *mk = (mask*)&table[tab_ind];
+	mask *mk = (mask*)&table[i];
 	getsym();
 	if (sym != SYM_LSQUARE)
 	{
@@ -726,6 +733,161 @@ int getarrayaddr(int tab_ind, symset fsys, symset ksys)
 }
 
 //////////////////////////////////////////////////////////////////////
+int callprocedure(int i, symset fsys, symset ksys)
+{
+	symset set, set1;
+
+	getsym();
+	mask* mk = (mask*)&table[i];
+	comtyp *p = table[i].ptr;
+	comtyp *p_proc = p->ptr;
+	int n = p->k;
+	if (sym == SYM_LPAREN)
+	{
+		getsym();
+		set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
+		set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
+		if (n)
+		{
+			if (sym == SYM_RPAREN)
+			{
+				error(42); // Too few parameters in a procedure.
+			}
+			else
+			{
+				test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
+			}
+		}
+		while (inset(sym, exp_first_sys) && n--)
+		{
+			int kind = p[p->k - n].k;
+			comtyp *pmt_ptr = p[p->k - n].ptr;
+			if (kind == ID_VARIABLE)
+			{
+				expression(set, set1, UNCONST_EXPR);
+			}
+			else if (kind == ID_POINTER)
+			{
+				if (sym == SYM_IDENTIFIER)
+				{
+					if ((i = position(id, TABLE_BEGIN)) == 0)
+					{
+						error(11); // Undeclared identifier.
+						getsym();
+					}
+					else
+					{
+						getsym();
+						mask *mk = (mask*)&table[i];
+						if (pmt_ptr)
+						{ // array_pointer
+							if (mk->kind == ID_ARRAY && isSameType(mk->ptr, pmt_ptr))
+							{
+								gen(LEA, level - mk->level, mk->address);
+							}
+							else
+							{
+								error(41); // Non-array type/incorrect indices.
+							}
+						}
+						else
+						{ // variable pointer
+							if (mk->kind == ID_VARIABLE || mk->kind == ID_ARRAY)
+							{
+								gen(LEA, level - mk->level, mk->address);
+							}
+							else
+							{
+								error(54); // Incorrect type as an lvalue expression.
+							}
+							if (mk->kind == ID_ARRAY && getarrayaddr(i, set, set1))
+							{ // pointer <- array[i][j]...
+								gen(OPR, 0, OPR_ADD);
+							}
+						}
+					} // if
+				}
+				else
+				{
+					error(53); // The symbol can not be as the beginning of an lvalue expression.
+					test(set, set1, 19); // Incorrect symbol;
+				}
+			}
+			else if (kind == ID_PROCEDURE)
+			{
+				if (sym == SYM_IDENTIFIER)
+				{
+					if ((i = position(id, TABLE_BEGIN)) == 0)
+					{
+						error(11); // Undeclared identifier.
+						getsym();
+					}
+					else
+					{
+						getsym();
+						mask *mk = (mask*)&table[i];
+						if (mk->kind == ID_PROCEDURE && isSameType(mk->ptr, pmt_ptr))
+						{
+							gen(LEA, level - mk->level, 0); // LIT the StaticLink
+							gen(LIT, 0, mk->address);		// LIT cx
+						}
+						else
+						{
+							error(56); // Non-procedure type/incorrect parameter types.
+						}
+					} // if
+				}
+				else
+				{
+					error(55); // The symbol can not be as the beginning of a function call.
+					test(set, set1, 19); // Incorrect symbol;
+				}
+			}
+
+			if (sym == SYM_COMMA)
+			{
+				getsym();
+			}
+			else if (sym == SYM_RPAREN)
+			{
+				getsym();
+				if (n)
+				{
+					error(42); // Too few parameters in a procedure.
+				}
+				break;
+			}
+			else
+			{
+				error(40); // Missing ',' or ')'.
+			}
+		} // while
+		destroyset(set);
+		destroyset(set1);
+		if (inset(sym, exp_first_sys))
+		{
+			error(39); // Too many parameters in a procedure.
+		}
+		if (sym == SYM_RPAREN)
+		{
+			getsym();
+		}
+	} // if
+	if (!n)
+	{
+		if (p_proc[0].k == PMT_PROC)
+		{
+			gen(CALS, level - mk->level, mk->address);
+		}
+		else
+		{ // NON_PMT_PROC
+			gen(CAL, level - mk->level, mk->address);
+		}
+	}
+	return n ? FALSE : TRUE;
+}
+
+//////////////////////////////////////////////////////////////////////
 int or_condition(symset fsys, symset ksys, int CONST_CHECK);									// added by nanahka 17-12-15
 int factor(symset fsys, symset ksys, int CONST_CHECK)
 {
@@ -786,65 +948,11 @@ int factor(symset fsys, symset ksys, int CONST_CHECK)
 				case ID_PROCEDURE:
 					if (CONST_CHECK)
 					{
-						getsym();                                                             //added by lzp 2017/12/10
-						mk = (mask*)&table[i];
-						int n = *mk->ptr;
-						if (sym == SYM_LPAREN)
-						{
-							getsym();
-							set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
-							set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
-							if (n)
-							{
-								if (sym == SYM_RPAREN)
-								{
-									error(42); // Too few parameters in a procedure.
-								}
-								else
-								{
-									test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
-								}
-							}
-							while (inset(sym, exp_first_sys) && n--)
-							{
-								expression(set, set1, UNCONST_EXPR);
-								if (sym == SYM_COMMA)
-								{
-									getsym();
-								}
-								else if (sym == SYM_RPAREN)
-								{
-									getsym();
-									if (n)
-									{
-										error(42); // Too few parameters in a procedure.
-									}
-									break;
-								}
-								else
-								{
-									error(40); // Missing ',' or ')'.
-								}
-							} // while
-							destroyset(set);
-							destroyset(set1);
-							if (inset(sym, exp_first_sys))
-							{
-								error(39); // Too many parameters in a procedure.
-							}
-							if (sym == SYM_RPAREN)
-							{
-								getsym();
-							}
-						} // if
-						if (!n)
-						{
-							gen(CAL, level - mk->level, mk->address);
-						}//error(21); // Procedure identifier can not be in an expression.
+						callprocedure(i, fsys, ksys);
 					}
 					else
 					{
-						error(53);                       //procedure can not be in const
+						error(60); // Procedure can not be in const expression.
 					}
 					break;
 				case ID_ARRAY:																	// added by nanahka 17-11-15
@@ -1153,19 +1261,30 @@ int or_condition(symset fsys, symset ksys, int CONST_CHECK)
 }
 
 //////////////////////////////////////////////////////////////////////
-int isSameType(comtyp *ptr1, comtyp *ptr2)
+int isSameCompType(comtyp *ptr1, comtyp *ptr2)
 {
 	if (ptr1 && ptr2)
 	{
-		mask_tp *mp1 = (mask_tp*)ptr1;
-		mask_tp *mp2 = (mask_tp*)ptr2;
-		if (mp1[0].size != mp2[0].size)
+		if (ptr1[0].k != ptr2[0].k)
 		{
 			return FALSE;
 		}
 		else
 		{
-			int n = mp1[0].size;
+			comtyp *p1 = ptr1->ptr;																// modified by nanahka 17-12-17
+			comtyp *p2 = ptr2->ptr;
+			if (p1 && p2)
+			{
+				if (p1[1].k != p2[1].k)
+				{
+					return FALSE; // not have the same retval type
+				}
+			}
+			else if (p1 || p2)
+			{
+				return FALSE;
+			}
+			int n = ptr1[0].k;
 			while (n--)
 			{
 				if (ptr1[n + 1].k != ptr2[n + 1].k ||
@@ -1189,7 +1308,7 @@ int isSameType(comtyp *ptr1, comtyp *ptr2)
 
 void statement(symset fsys, symset ksys)
 {
-	int i, cx1, cx2,cx3,cx4;
+	int i, cx1, cx2, cx3, cx4;
 	symset set1, set, set2, set3;
 
 	if (sym == SYM_IDENTIFIER)
@@ -1199,155 +1318,9 @@ void statement(symset fsys, symset ksys)
 			error(11); // Undeclared identifier.
 			getsym();
 		}
-		else if (table[i].kind == ID_PROCEDURE)													// modified by nanahka 17-12-16
+		else if (table[i].kind == ID_PROCEDURE)													// modified by nanahka 17-12-17
 		{ // procedure call
-			getsym();
-			mask* mk = (mask*)&table[i];
-			comtyp *p = table[i].ptr;
-			mask_tp *mp = (mask_tp*)p;
-			int n = mp->size;
-			if (sym == SYM_LPAREN)
-			{
-				getsym();
-				set = createset(SYM_COMMA, SYM_RPAREN, SYM_NULL);
-				set1 = uniteset_mul(ksys, set, exp_first_sys, 0);
-				if (n)
-				{
-					if (sym == SYM_RPAREN)
-					{
-						error(42); // Too few parameters in a procedure.
-					}
-					else
-					{
-						test(exp_first_sys, set1, 24); // The symbol can not be as the beginning of an expression.
-					}
-				}
-				while (inset(sym, exp_first_sys) && n--)
-				{
-					int kind = p[mp->size - n].k;
-					comtyp *pmt_ptr = p[mp->size - n].ptr;
-					if (kind == ID_VARIABLE)
-					{
-						expression(set, set1, UNCONST_EXPR);
-					}
-					else if (kind == ID_POINTER)
-					{
-						if (sym == SYM_IDENTIFIER)
-						{
-							if ((i = position(id, TABLE_BEGIN)) == 0)
-							{
-								error(11); // Undeclared identifier.
-								getsym();
-							}
-							else
-							{
-								getsym();
-								mask *mk = (mask*)&table[i];
-								if (pmt_ptr)
-								{ // array_pointer
-									if (mk->kind == ID_ARRAY && isSameType(mk->ptr, pmt_ptr))
-									{
-										gen(LEA, level - mk->level, mk->address);
-									}
-									else
-									{
-										error(41); // Non-array type/incorrect indices.
-									}
-								}
-								else
-								{ // variable pointer
-									if (mk->kind == ID_VARIABLE || mk->kind == ID_ARRAY)
-									{
-										gen(LEA, level - mk->level, mk->address);
-									}
-									else
-									{
-										error(54); // Incorrect type as an lvalue expression.
-									}
-									if (mk->kind == ID_ARRAY && getarrayaddr(i, set, set1))
-									{ // pointer <- array[i][j]...
-										gen(OPR, 0, OPR_ADD);
-									}
-								}
-							} // if
-						}
-						else
-						{
-							error(53); // The symbol can not be as the beginning of an lvalue expression.
-							test(set, set1, 19); // Incorrect symbol;
-						}
-					}
-					else if (kind == ID_PROCEDURE)
-					{
-						if (sym == SYM_IDENTIFIER)
-						{
-							if ((i = position(id, TABLE_BEGIN)) == 0)
-							{
-								error(11); // Undeclared identifier.
-								getsym();
-							}
-							else
-							{
-								getsym();
-								mask *mk = (mask*)&table[i];
-								if (mk->kind == ID_PROCEDURE && isSameType(mk->ptr, pmt_ptr))
-								{
-									gen(LEA, level - mk->level, 0); // LIT the StaticLink
-									gen(LIT, 0, mk->address);		// LIT cx
-								}
-								else
-								{
-									error(56); // Non-procedure type/incorrect parameter types.
-								}
-							} // if
-						}
-						else
-						{
-							error(55); // The symbol can not be as the beginning of a function call.
-							test(set, set1, 19); // Incorrect symbol;
-						}
-					}
-
-					if (sym == SYM_COMMA)
-					{
-						getsym();
-					}
-					else if (sym == SYM_RPAREN)
-					{
-						getsym();
-						if (n)
-						{
-							error(42); // Too few parameters in a procedure.
-						}
-						break;
-					}
-					else
-					{
-						error(40); // Missing ',' or ')'.
-					}
-				} // while
-				destroyset(set);
-				destroyset(set1);
-				if (inset(sym, exp_first_sys))
-				{
-					error(39); // Too many parameters in a procedure.
-				}
-				if (sym == SYM_RPAREN)
-				{
-					getsym();
-				}
-			} // if
-			if (!n)
-			{
-				if (mp->pt == PMT_PROC)
-				{
-					gen(CALS, level - mk->level, mk->address);
-				}
-				else
-				{ // NON_PMT_PROC
-					gen(CAL, level - mk->level, mk->address);
-				}
-			}
+			callprocedure(i, fsys, ksys);
 		}
 		else																					// modified by nanahka 17-11-21
 		{ // assignment
@@ -1440,13 +1413,13 @@ void statement(symset fsys, symset ksys)
 		cx1 = cx;
 		gen(JPC, 0, 0);
 		statement(fsys, ksys);	// modified by nanahka 17-11-13
-		cx2=cx;
+		cx2 = cx;
 		gen(JMP,0,0);
 		code[cx1].a = cx;
-		if(sym!=SYM_ELSE)
+		if(sym != SYM_ELSE)
 			error(47);      //missing 'else
-		statement(fsys,ksys);
-		code[cx2].a=cx;
+		statement(fsys, ksys);
+		code[cx2].a = cx;
 	} //PL0 has been changed to 'else' is necessary,but I will find a way to change it to C_style
 	else if (sym == SYM_BEGIN)
 	{ // block
@@ -1515,7 +1488,7 @@ void statement(symset fsys, symset ksys)
 		count = 0;
 		head = cltab[cltop].c;                                         //regain head
 	}
-	else if (sym == SYM_DO)                                                //modified by lzp 2017/12/16 
+	else if (sym == SYM_DO)                                                //modified by lzp 2017/12/16
 	{//do-while statement
 		cltab[cltop].c = head;
 		cltab[cltop++].ty = env;
@@ -1629,7 +1602,7 @@ void statement(symset fsys, symset ksys)
 		getsym();
 		if (i = position(id, TABLE_BEGIN))
 		{
-			error(59);                                        //undeclared label
+			error(59); // Undeclared label.
 			getsym();
 		}
 		else
@@ -1638,7 +1611,7 @@ void statement(symset fsys, symset ksys)
 		}
 		if (sym != SYM_SEMICOLON)
 		{
-			error(26);                                         //missing ';'                                
+			error(26);                                         //missing ';'
 		}
 		else
 		{
@@ -1648,120 +1621,120 @@ void statement(symset fsys, symset ksys)
 	}
 	else if (sym == SYM_SWITCH)                                         //modified by lzp 17/12/16
 	{
-		cltab[cltop++].ty = env;
-		env = ENV_SWITCH;
-		getsym();
-		if (sym != SYM_RPAREN)
-		{
-			error(43);           //missing '('
-		}//if
-		else
-		{
-			getsym();
-		}//else
-		set = createset(SYM_RPAREN, SYM_BEGIN, SYM_NULL);
-		set1 = uniteset_mul(set, SYM_CASE, SYM_BEGIN, ksys);
-		expression(set, set1, UNCONST_EXPR);
-		if (sym != SYM_RPAREN)
-		{
-			error(22);                       //missing ')'
-		}//if
-		else
-		{
-			getsym();
-		}//else
-		if (sym != SYM_BEGIN)
-		{
-			error(50);              //missing 'begin'
-		}//if
-		else
-		{
-			getsym();
-		}//else
-		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
-		{
-			error(51);              //missing 'case','end' or 'default'
-		}//if
-		set = createset(SYM_COLON, SYM_NULL);
-		set1 = uniteset_mul(ksys, set, stat_first_sys);
-		set2 = createset(SYM_CASE, SYM_END, SYM_NULL);
-		set3 = uniteset_mul(ksys, set2, stat_first_sys);
-		int tmp;
-		int de_break;         //mark whether there is 'break' after 'default'
-		int cx_br;
-		int num_case = 0;         //count num of case
-		cx1 = cx;
-		gen(JMP, 0, 0);            //goto test
-		while (sym != SYM_END)
-		{
-			num_case++;
-			if (tx_c == maxcase)
-			{
-				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
-				maxcase += INCREMENT;
-			}//if         //prepare for more case
-			tmp = sym;                                     //store the keyword 'case' or 'default'
-			if (sym != SYM_DEFAULT) {
-				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
-			}//if
-			if (sym != SYM_COLON)
-			{
-				error(52);              //missing ':'
-			}//if
-			else
-			{
-				getsym();
-			}//else
-			if (tmp != SYM_DEFAULT)
-			{
-				switchtab[tx_c].c = cx;
-			}//if
-			else
-			{
-				cx2 = cx;
-			}//else
-			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))       //inside case,default
-			{
-				if (sym == SYM_BREAK)
-				{
-					if (tmp != SYM_DEFAULT)
-					{
-						switchtab[tx_c].flag = TRUE;      //break
-						switchtab[tx_c++].cx_bre = cx;
-					}//if
-					else
-					{
-						de_break = TRUE;
-						cx_br = cx;
-					}//else
-				}//if
-				statement(set2, set3);
-			}//while2
-		}//while1
-		cx3 = cx;
-		gen(JMP, 0, 0);
-		code[cx1].a = cx;                                            //test
-		int i;
-		for (i = tx_c - num_case; i < tx_c; i++)                       //gen junp ins fo case and default
-		{
-			gen(JET, switchtab[i].t, switchtab[i].c);
-		}
-		gen(JMP, 0, cx2);                                           //default ,at the end
-		for (i = tx_c - num_case; i < tx_c; i++)                      //backpatch for break
-		{
-			if (switchtab[i].flag == TRUE)
-			{
-				code[switchtab[i].cx_bre].a = cx;
-			}
-		}//for
-		if (de_break == TRUE)
-		{
-			code[cx_br].a = cx;
-		}
-		code[cx3].a = cx;                                 //if ther is no break ,we can jump out of switch
-		tx_c -= num_case;                                //delete case of inside switch stat 
-		cltop--;
-		env = cltab[cltop].ty;
+//		cltab[cltop++].ty = env;
+//		env = ENV_SWITCH;
+//		getsym();
+//		if (sym != SYM_RPAREN)
+//		{
+//			error(43);           //missing '('
+//		}//if
+//		else
+//		{
+//			getsym();
+//		}//else
+//		set = createset(SYM_RPAREN, SYM_BEGIN, SYM_NULL);
+//		set1 = uniteset_mul(set, SYM_CASE, SYM_BEGIN, ksys);
+//		expression(set, set1, UNCONST_EXPR);
+//		if (sym != SYM_RPAREN)
+//		{
+//			error(22);                       //missing ')'
+//		}//if
+//		else
+//		{
+//			getsym();
+//		}//else
+//		if (sym != SYM_BEGIN)
+//		{
+//			error(50);              //missing 'begin'
+//		}//if
+//		else
+//		{
+//			getsym();
+//		}//else
+//		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
+//		{
+//			error(51);              //missing 'case','end' or 'default'
+//		}//if
+//		set = createset(SYM_COLON, SYM_NULL);
+//		set1 = uniteset_mul(ksys, set, stat_first_sys);
+//		set2 = createset_mul(SYM_CASE, SYM_END, SYM_NULL);
+//		set3 = uniteset_mul(ksys, set2, stat_first_sys);
+//		int tmp;
+//		int de_break;         //mark whether there is 'break' after 'default'
+//		int cx_br;
+//		int num_case = 0;         //count num of case
+//		cx1 = cx;
+//		gen(JMP, 0, 0);            //goto test
+//		while (sym != SYM_END)
+//		{
+//			num_case++;
+//			if (tx_c == maxcase)
+//			{
+//				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
+//				maxcase += INCREMENT;
+//			}//if         //prepare for more case
+//			tmp = sym;                                     //store the keyword 'case' or 'default'
+//			if (sym != SYM_DEFAULT) {
+//				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
+//			}//if
+//			if (sym != SYM_COLON)
+//			{
+//				error(52);              //missing ':'
+//			}//if
+//			else
+//			{
+//				getsym();
+//			}//else
+//			if (tmp != SYM_DEFAULT)
+//			{
+//				switchtab[tx_c].c = cx;
+//			}//if
+//			else
+//			{
+//				cx2 = cx;
+//			}//else
+//			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))       //inside case,default
+//			{
+//				if (sym == SYM_BREAK)
+//				{
+//					if (tmp != SYM_DEFAULT)
+//					{
+//						switchtab[tx_c].flag = TRUE;      //break
+//						switchtab[tx_c++].cx_bre = cx;
+//					}//if
+//					else
+//					{
+//						de_break = TRUE;
+//						cx_br = cx;
+//					}//else
+//				}//if
+//				statement(set2, set3);
+//			}//while2
+//		}//while1
+//		cx3 = cx;
+//		gen(JMP, 0, 0);
+//		code[cx1].a = cx;                                            //test
+//		int i;
+//		for (i = tx_c - num_case; i < tx_c; i++)                       //gen junp ins fo case and default
+//		{
+//			gen(JET, switchtab[i].t, switchtab[i].c);
+//		}
+//		gen(JMP, 0, cx2);                                           //default ,at the end
+//		for (i = tx_c - num_case; i < tx_c; i++)                      //backpatch for break
+//		{
+//			if (switchtab[i].flag == TRUE)
+//			{
+//				code[switchtab[i].cx_bre].a = cx;
+//			}
+//		}//for
+//		if (de_break == TRUE)
+//		{
+//			code[cx_br].a = cx;
+//		}
+//		code[cx3].a = cx;                                 //if ther is no break ,we can jump out of switch
+//		tx_c -= num_case;                                //delete case of inside switch stat
+//		cltop--;
+//		env = cltab[cltop].ty;
 	}//else if
 	else if (sym = SYM_FOR)
 	{//for statement
@@ -1819,7 +1792,7 @@ void statement(symset fsys, symset ksys)
 		getsym();
 		set1 = createset(SYM_SEMICOLON, SYM_NULL);
 		set = uniteset_mul(ksys, set1, stat_first_sys, SYM_SEMICOLON, 0);
-		expression(set1, set,UNCONST_EXPR);
+		expression(set1, set, UNCONST_EXPR);
 		if (sym != SYM_SEMICOLON)
 			error(26);          //missing ';'
 		gen(OPR, 0, OPR_RTN);
@@ -1833,18 +1806,20 @@ void statement(symset fsys, symset ksys)
 		if (sym != SYM_LPAREN)
 			error(43);       //'(' is needed
 		getsym();
-		set = createset(SYM_SEMICOLON, SYM_NULL);
-		set1 = uniteset_mul(set, ksys, stat_first_sys);
-	    expression(set, set1, UNCONST_EXPR);
+		i = position(id, TABLE_BEGIN);
+		if (table[i].kind != ID_CONSTANT)
+			error(45);          //'exit' have to return a constant
+		getsym();
 		if (sym != SYM_LPAREN)
 			error(22);           //missing ')'
 		getsym();
 		if (sym != SYM_SEMICOLON)
 			error(10);          //missing ';'
+		gen(LIT, 0, table[i].value);
 		gen(EXT, 0, 0);
 		getsym();
 	}
-	
+
 	test(ksys, ksys, 19);																		// modified by nanahka 17-11-20
 } // statement
 
@@ -2043,10 +2018,10 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 				if (PROC_CREATED)																	// modified by nanahka 17-12-16
 				{
 					int sum_alloc = 0;
-					ptr = table[tx_b].ptr = (comtyp*)malloc( (n + 1) * sizeof(comtyp));				// modified by nanahka 17-12-15
-					mask_tp *mp = (mask_tp*)ptr;
-					mp->pt = NON_PMT_PROC;
-					mp->size = n;
+					ptr = table[tx_b].ptr = (comtyp*)malloc( (n + 1) * sizeof(comtyp));				// modified by nanahka 17-12-17
+					comtyp *p_proc = ptr->ptr = (comtyp*)malloc(2 * sizeof(comtyp));
+					p_proc[0].k = NON_PMT_PROC;
+					ptr->k = n;
 					for (int i = 0; i < n; ++i)
 					{
 						mask *mk = (mask*)&table[tx - i];
@@ -2067,7 +2042,7 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 			else
 			{
 				ptr = table[tx_b].ptr = (comtyp*)malloc(sizeof(comtyp));								// modified by nanahka 17-12-15
-				ptr[0].k = 0;
+				ptr[0].k = 0; // procedure declared without "()" is not allowed as a parameter of another procedure
 			}
 
 			set1 = createset(SYM_SEMICOLON, SYM_NULL);
@@ -2116,6 +2091,16 @@ void block(symset fsys, symset ksys)	// fsys/ksys is the Follow/KeyWord set of c
 	//destroyset(set1);
 	//destroyset(set);
 	gen(OPR, 0, OPR_RET); // return
+	while (cx_ret[i_ret]!=0)
+	{
+		code[cx_ret[i]].a=cx;
+		cx_ret[i++]=0;
+	}
+	i=0;
+	while(cx_exit[i++]!=0)
+	{                                           //all 'exit' gen a instruction to jump to this end
+		code[cx_exit[i-1]].a = cx;
+	}
 	test(ksys, ksys, 8); // Follow the statement is an incorrect symbol.						// modified by nanahka 17-11-20
 	listcode(cx0, cx);
 } // block
@@ -2226,9 +2211,8 @@ void interpret()
 				stack[top] = stack[top] || stack[top + 1];
 				break;
 			case OPR_RTN:                           //added by lzp 2017/12/10
-				i.l = stack[top];
-				top = b;
-			        stack[top] = i.l;
+				stack[b] = stack[top];
+				top = b;																			//e
 				pc = stack[top + 2];
 				b = stack[top + 1];
 			} // switch
@@ -2296,7 +2280,7 @@ void interpret()
 				pc = i.a;
 			break;
 		case EXT:
-			pc = 0;                        //added by lzp,instruction jump to the last one
+			pc = cx;                        //added by lzp,instruction jump to the last one
 			break;
 		case JET:                           //added by lzp 17/12/16,if the top equals to i.l,jump to i.a
 			if (stack[top] == i.l)
