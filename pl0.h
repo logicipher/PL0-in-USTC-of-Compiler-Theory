@@ -296,7 +296,7 @@ typedef struct                                //added by lzp 17/12/14
 	int flag;                //to mark break
 	int cx_bre               //break cx
 }casetab;
-casetab *switchtab
+casetab *switchtab；
 
 typedef struct
 {
