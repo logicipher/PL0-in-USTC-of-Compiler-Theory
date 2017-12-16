@@ -361,7 +361,7 @@ void enter(int kind)
 		ptr = 0;
 		break;
 	case ID_LABEL:                           //added by lzp 17/12/16
-		table[tx].vlaue = cx;                   //label pointing to a ins
+		table[tx].value = cx;                   //label pointing to a ins
 		break;
 	} // switch
 } // enter
@@ -465,7 +465,7 @@ void constdeclaration()
 			else if (sym == SYM_COLON)                                               //added by lzp 17/12/16
 			{
 				getsym();
-				if (sym == SYM_VAR || sym == SYMCONST || sym == SYM_PROCEDURE)
+				if (sym == SYM_VAR || sym == SYM_CONST || sym == SYM_PROCEDURE)
 				{
 					error(58);                                            //label mest be before a statement
 				}
