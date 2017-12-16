@@ -87,7 +87,7 @@ enum symtype
 
 enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                      //added by lzp 17/12/16
+	ID_VOID, ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                      //added by lzp 17/12/16
 };
 
 enum opcode
@@ -112,7 +112,7 @@ enum environment                                           //added by lzp 17/12/
 
 enum control                                                        //added by lzp 17/12/16
 {
-	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet                          
+	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet
 };
 
 
@@ -185,7 +185,8 @@ char* err_msg[] =
 /* 56 */	"Non-procedure type/incorrect parameter types.",
 /* 57 */    "procedure can not be in a const factor.",
 /* 58 */    "label must be followed by a statement.",
-/* 59 */    "nuknown label."
+/* 59 */    "Undeclared label.",
+/* 60 */	"Procedure can not be in const expression."						// added by nanahka 17-12-16
 };
 
 typedef struct type comtyp;
@@ -194,7 +195,7 @@ char ch;         // last character read
 int  sym;        // last symbol read
 char id[MAXIDLEN + 1]; // last identifier read
 int  num;        // last number read
-comtyp  *ptr;		 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
+comtyp  *ptr;	 // a dynamic array containing elements composing a composite type				// modified by nanahka 17-12-15
 int  cc;         // character count
 int  ll;         // line length
 int  kk;
@@ -229,7 +230,7 @@ int wsym[NRW + 1] =
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
 	SYM_ELSE, SYM_FOR, SYM_RETURN, SYM_EXIT, SYM_SWITCH, SYM_CASE,
-	SYM_DEFAULT, SYM_BREAK,SYM_CONTINUE, SYM_GOTO                                                      //added by lzp 17/12/16
+	SYM_DEFAULT, SYM_BREAK, SYM_CONTINUE, SYM_GOTO                                                      //added by lzp 17/12/16
 };
 
 int ssym[NSYM + 1] =
@@ -244,31 +245,18 @@ char csym[NSYM + 1] =
 	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!',':'						// added by nanahka 17-11-26
 };
 
-#define MAXINS   18																			// modified by lzp 17/12/16
+#define MAXINS   18																				// modified by lzp 17/12/16
 char* mnemonic[MAXINS] =
 {
 	"LIT", "OPR", "LOD", "LODI", "LODIL", "LEA", "STO", "STOI", "STOIL",
-	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "EXT", "JET"                          //added by lzp 17/12/16
+	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "EXT", "JET"                          	//added by lzp 17/12/16
 };
 
-struct type																				// added by nanahka 17-12-15
+struct type																						// added by nanahka 17-12-15
 {
 	int k; // kind of parameter (for procedure) / dimension (for array)
 	struct type *ptr;
 };
-
-typedef struct																					// added by nanahka 17-12-16
-{
-	short pt;
-	short size;
-	struct type *ptr;
-} mask_tp;
-
-//typedef struct																					// modified by nanahka 17-12-16
-//{
-//	short pt;
-//	short size;
-//} mask_k;
 
 typedef struct
 {
@@ -294,11 +282,9 @@ typedef struct                                //added by lzp 17/12/14
 	int t;                   //the condition of switch
 	int c;                   //the index of first ins of every case
 	int flag;                //to mark break
-	int cx_bre;               //break cx
+	int cx_bre               //break cx
 }casetab;
 casetab *switchtab;
-int tx_c = 0;
-int maxcase =MAX_CASE;
 
 typedef struct
 {
