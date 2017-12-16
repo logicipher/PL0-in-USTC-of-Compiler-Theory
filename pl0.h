@@ -282,7 +282,7 @@ typedef struct                                //added by lzp 17/12/14
 	int t;                   //the condition of switch
 	int c;                   //the index of first ins of every case
 	int flag;                //to mark break
-	int cx_bre               //break cx
+	int cx_bre;               //break cx
 }casetab;
 casetab *switchtab;
 int tx_c = 0;
