@@ -1745,13 +1745,14 @@ void statement(symset fsys, symset ksys)
 		if (sym != SYM_LPAREN)
 			error(43);  //missing '('
 		getsym();
-		if ((i = position(id, TABLE_BEGIN)) == 0)
-			error(11);           //id not declared
+		i = position(id, TABLE_BEGIN);
+		if (i)
+		    error(11);           //id not declared
 		if (table[i].kind != ID_VARIABLE)
 			error(44);           //it must be a variable
 		set1 = createset(SYM_SEMICOLON, SYM_NULL);
 		set = uniteset_mul(ksys, set1, SYM_IDENTIFIER, 0);
-		expression(set1, set, UNCONST_EXPR);
+		statement(set1, set);
 		if (sym != SYM_SEMICOLON)
 			error(10);            //';' expected
 		getsym();
@@ -1772,7 +1773,7 @@ void statement(symset fsys, symset ksys)
 		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
 		cx4 = cx;
 		head = cx;
-		expression(set1, set, UNCONST_EXPR);        //change cycle var
+		statement(set1, set);        //change cycle var
 		gen(JMP, 0, cx1);
 		code[cx3].a = cx;
 		statement(fsys, ksys);       //body of 'for'
