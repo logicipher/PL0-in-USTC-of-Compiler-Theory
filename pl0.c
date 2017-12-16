@@ -1756,7 +1756,7 @@ void statement(symset fsys, symset ksys)
 			error(10);            //';' expected
 		getsym();
 		cx1 = cx;
-		head = cx;                                        //modified by lzp 17/12/16
+		                                       //modified by lzp 17/12/16
 		or_condition(set1, set, UNCONST_EXPR);          //condition
 		destroyset(set);
 		destroyset(set1);
@@ -1771,6 +1771,7 @@ void statement(symset fsys, symset ksys)
 		set1 = createset(SYM_RPAREN, SYM_NULL);
 		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
 		cx4 = cx;
+		head = cx;
 		expression(set1, set, UNCONST_EXPR);        //change cycle var
 		gen(JMP, 0, cx1);
 		code[cx3].a = cx;
