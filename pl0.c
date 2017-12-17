@@ -1521,6 +1521,7 @@ void statement(symset fsys, symset ksys)
 		{
 			error(22);            //missing ')'
 		}
+		/*
 		if (sym == SYM_SEMICOLON)
 		{
 			getsym();
@@ -1529,6 +1530,7 @@ void statement(symset fsys, symset ksys)
 		{
 			error(26);            //missing ';'
 		}
+		*/                                            modified by lzp 17/12/17
 		cx2 = cx;
 		gen(JPC, 0, 0);
 		gen(JMP, 0, cx1);
@@ -1751,12 +1753,11 @@ void statement(symset fsys, symset ksys)
 			error(44);           //it must be a variable
 		set1 = createset(SYM_SEMICOLON, SYM_NULL);
 		set = uniteset_mul(ksys, set1, SYM_IDENTIFIER, 0);
-		expression(set1, set, UNCONST_EXPR);
+		statement(set1, set);
 		if (sym != SYM_SEMICOLON)
 			error(10);            //';' expected
 		getsym();
-		cx1 = cx;
-		head = cx;                                        //modified by lzp 17/12/16
+		cx1 = cx;                                        //modified by lzp 17/12/17
 		or_condition(set1, set, UNCONST_EXPR);          //condition
 		destroyset(set);
 		destroyset(set1);
@@ -1771,7 +1772,8 @@ void statement(symset fsys, symset ksys)
 		set1 = createset(SYM_RPAREN, SYM_NULL);
 		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
 		cx4 = cx;
-		expression(set1, set, UNCONST_EXPR);        //change cycle var
+		head = cx;
+		statement(set1, set);        //change cycle var
 		gen(JMP, 0, cx1);
 		code[cx3].a = cx;
 		statement(fsys, ksys);       //body of 'for'
@@ -2316,7 +2318,7 @@ int main ()
 	relset 				= createset(SYM_EQU, SYM_NEQ, SYM_LES, SYM_LEQ, SYM_GTR, SYM_GEQ, SYM_NULL);
 
 	decl_first_sys 		= createset(SYM_CONST, SYM_VAR, SYM_PROCEDURE, SYM_NULL);
-	stat_first_sys 		= createset(SYM_IDENTIFIER, SYM_BEGIN, /*SYM_CALL,*/ SYM_IF, SYM_WHILE, SYM_NULL);	// deleted by nanahka 17-11-20
+	stat_first_sys 		= createset(SYM_IDENTIFIER, SYM_BEGIN,  SYM_IF, SYM_WHILE,SYM_DO,SYM_FOR,SYM_SWITCH,SYM_BREAK,SYM_CONTINUE,SYM_GOTO, SYM_NULL);	
 	blk_first_sys 		= uniteset(decl_first_sys, stat_first_sys);
 	fac_first_sys 		= createset(SYM_IDENTIFIER, SYM_NUMBER, SYM_LPAREN, SYM_MINUS, SYM_NOT, SYM_NULL);
 	exp_first_sys		= fac_first_sys;
