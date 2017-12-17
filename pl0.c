@@ -1621,120 +1621,120 @@ void statement(symset fsys, symset ksys)
 	}
 	else if (sym == SYM_SWITCH)                                         //modified by lzp 17/12/16
 	{
-//		cltab[cltop++].ty = env;
-//		env = ENV_SWITCH;
-//		getsym();
-//		if (sym != SYM_RPAREN)
-//		{
-//			error(43);           //missing '('
-//		}//if
-//		else
-//		{
-//			getsym();
-//		}//else
-//		set = createset(SYM_RPAREN, SYM_BEGIN, SYM_NULL);
-//		set1 = uniteset_mul(set, SYM_CASE, SYM_BEGIN, ksys);
-//		expression(set, set1, UNCONST_EXPR);
-//		if (sym != SYM_RPAREN)
-//		{
-//			error(22);                       //missing ')'
-//		}//if
-//		else
-//		{
-//			getsym();
-//		}//else
-//		if (sym != SYM_BEGIN)
-//		{
-//			error(50);              //missing 'begin'
-//		}//if
-//		else
-//		{
-//			getsym();
-//		}//else
-//		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
-//		{
-//			error(51);              //missing 'case','end' or 'default'
-//		}//if
-//		set = createset(SYM_COLON, SYM_NULL);
-//		set1 = uniteset_mul(ksys, set, stat_first_sys);
-//		set2 = createset_mul(SYM_CASE, SYM_END, SYM_NULL);
-//		set3 = uniteset_mul(ksys, set2, stat_first_sys);
-//		int tmp;
-//		int de_break;         //mark whether there is 'break' after 'default'
-//		int cx_br;
-//		int num_case = 0;         //count num of case
-//		cx1 = cx;
-//		gen(JMP, 0, 0);            //goto test
-//		while (sym != SYM_END)
-//		{
-//			num_case++;
-//			if (tx_c == maxcase)
-//			{
-//				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
-//				maxcase += INCREMENT;
-//			}//if         //prepare for more case
-//			tmp = sym;                                     //store the keyword 'case' or 'default'
-//			if (sym != SYM_DEFAULT) {
-//				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
-//			}//if
-//			if (sym != SYM_COLON)
-//			{
-//				error(52);              //missing ':'
-//			}//if
-//			else
-//			{
-//				getsym();
-//			}//else
-//			if (tmp != SYM_DEFAULT)
-//			{
-//				switchtab[tx_c].c = cx;
-//			}//if
-//			else
-//			{
-//				cx2 = cx;
-//			}//else
-//			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))       //inside case,default
-//			{
-//				if (sym == SYM_BREAK)
-//				{
-//					if (tmp != SYM_DEFAULT)
-//					{
-//						switchtab[tx_c].flag = TRUE;      //break
-//						switchtab[tx_c++].cx_bre = cx;
-//					}//if
-//					else
-//					{
-//						de_break = TRUE;
-//						cx_br = cx;
-//					}//else
-//				}//if
-//				statement(set2, set3);
-//			}//while2
-//		}//while1
-//		cx3 = cx;
-//		gen(JMP, 0, 0);
-//		code[cx1].a = cx;                                            //test
-//		int i;
-//		for (i = tx_c - num_case; i < tx_c; i++)                       //gen junp ins fo case and default
-//		{
-//			gen(JET, switchtab[i].t, switchtab[i].c);
-//		}
-//		gen(JMP, 0, cx2);                                           //default ,at the end
-//		for (i = tx_c - num_case; i < tx_c; i++)                      //backpatch for break
-//		{
-//			if (switchtab[i].flag == TRUE)
-//			{
-//				code[switchtab[i].cx_bre].a = cx;
-//			}
-//		}//for
-//		if (de_break == TRUE)
-//		{
-//			code[cx_br].a = cx;
-//		}
-//		code[cx3].a = cx;                                 //if ther is no break ,we can jump out of switch
-//		tx_c -= num_case;                                //delete case of inside switch stat
-//		cltop--;
-//		env = cltab[cltop].ty;
+		cltab[cltop++].ty = env;
+		env = ENV_SWITCH;
+		getsym();
+		if (sym != SYM_RPAREN)
+		{
+			error(43);           //missing '('
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		set = createset(SYM_RPAREN, SYM_BEGIN, SYM_NULL);
+		set1 = uniteset_mul(set, SYM_CASE, SYM_BEGIN, ksys);
+		expression(set, set1, UNCONST_EXPR);
+		if (sym != SYM_RPAREN)
+		{
+			error(22);                       //missing ')'
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		if (sym != SYM_BEGIN)
+		{
+			error(50);              //missing 'begin'
+		}//if
+		else
+		{
+			getsym();
+		}//else
+		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
+		{
+			error(51);              //missing 'case','end' or 'default'
+		}//if
+		set = createset(SYM_COLON, SYM_NULL);
+		set1 = uniteset_mul(ksys, set, stat_first_sys);
+		set2 = createset_mul(SYM_CASE, SYM_END, SYM_NULL);
+		set3 = uniteset_mul(ksys, set2, stat_first_sys);
+		int tmp;
+		int de_break;         //mark whether there is 'break' after 'default'
+		int cx_br;
+		int num_case = 0;         //count num of case
+		cx1 = cx;
+		gen(JMP, 0, 0);            //goto test
+		while (sym != SYM_END)
+		{
+			num_case++;
+			if (tx_c == maxcase)
+			{
+				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
+				maxcase += INCREMENT;
+			}//if         //prepare for more case
+			tmp = sym;                                     //store the keyword 'case' or 'default'
+			if (sym != SYM_DEFAULT) {
+				switchtab[tx_c].t = expression(set, set1, CONST_EXPR);
+			}//if
+			if (sym != SYM_COLON)
+			{
+				error(52);              //missing ':'
+			}//if
+			else
+			{
+				getsym();
+			}//else
+			if (tmp != SYM_DEFAULT)
+			{
+				switchtab[tx_c].c = cx;
+			}//if
+			else
+			{
+				cx2 = cx;
+			}//else
+			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))       //inside case,default
+			{
+				if (sym == SYM_BREAK)
+				{
+					if (tmp != SYM_DEFAULT)
+					{
+						switchtab[tx_c].flag = TRUE;      //break
+						switchtab[tx_c++].cx_bre = cx;
+					}//if
+					else
+					{
+						de_break = TRUE;
+						cx_br = cx;
+					}//else
+				}//if
+				statement(set2, set3);
+			}//while2
+		}//while1
+		cx3 = cx;
+		gen(JMP, 0, 0);
+		code[cx1].a = cx;                                            //test
+		int i;
+		for (i = tx_c - num_case; i < tx_c; i++)                       //gen junp ins fo case and default
+		{
+			gen(JET, switchtab[i].t, switchtab[i].c);
+		}
+		gen(JMP, 0, cx2);                                           //default ,at the end
+		for (i = tx_c - num_case; i < tx_c; i++)                      //backpatch for break
+		{
+			if (switchtab[i].flag == TRUE)
+			{
+				code[switchtab[i].cx_bre].a = cx;
+			}
+		}//for
+		if (de_break == TRUE)
+		{
+			code[cx_br].a = cx;
+		}
+		code[cx3].a = cx;                                 //if ther is no break ,we can jump out of switch
+		tx_c -= num_case;                                //delete case of inside switch stat
+		cltop--;
+		env = cltab[cltop].ty;
 	}//else if
 	else if (sym = SYM_FOR)
 	{//for statement
@@ -1745,19 +1745,18 @@ void statement(symset fsys, symset ksys)
 		if (sym != SYM_LPAREN)
 			error(43);  //missing '('
 		getsym();
-		i = position(id, TABLE_BEGIN);
-		if (i)
-		    error(11);           //id not declared
+		if ((i = position(id, TABLE_BEGIN)) == 0)
+			error(11);           //id not declared
 		if (table[i].kind != ID_VARIABLE)
 			error(44);           //it must be a variable
 		set1 = createset(SYM_SEMICOLON, SYM_NULL);
 		set = uniteset_mul(ksys, set1, SYM_IDENTIFIER, 0);
-		statement(set1, set);
+		expression(set1, set, UNCONST_EXPR);
 		if (sym != SYM_SEMICOLON)
 			error(10);            //';' expected
 		getsym();
 		cx1 = cx;
-		                                       //modified by lzp 17/12/16
+		head = cx;                                        //modified by lzp 17/12/16
 		or_condition(set1, set, UNCONST_EXPR);          //condition
 		destroyset(set);
 		destroyset(set1);
@@ -1772,8 +1771,7 @@ void statement(symset fsys, symset ksys)
 		set1 = createset(SYM_RPAREN, SYM_NULL);
 		set = uniteset_mul(ksys, set1, stat_first_sys, 0);
 		cx4 = cx;
-		head = cx;
-		statement(set1, set);        //change cycle var
+		expression(set1, set, UNCONST_EXPR);        //change cycle var
 		gen(JMP, 0, cx1);
 		code[cx3].a = cx;
 		statement(fsys, ksys);       //body of 'for'
