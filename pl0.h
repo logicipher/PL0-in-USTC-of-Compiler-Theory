@@ -4,7 +4,7 @@
 #define TRUE	   1
 #define FALSE	   0
 
-#define NRW        20     // number of reserved words
+#define NRW        22     // number of reserved words
 #define TXMAX      500    // length of identifier table
 #define MAXNUMLEN  14     // maximum number of digits in numbers
 #define NSYM       14     // maximum number of symbols in array ssym and csym
@@ -19,7 +19,7 @@
 //#define INITLIST   10	  // initial size of true/false lists									// added by nanahka 17-11-26
 //#define INCRELIST  5	  // increment of size of true/false lists
 
-#define MAXSYM     46     // maximum number of symbols
+#define MAXSYM     48     // maximum number of symbols
 
 #define STACKSIZE  1000   // maximum storage
 
@@ -73,16 +73,18 @@ enum symtype
 	SYM_AND,
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
 	SYM_ELSE,
-	SYM_FOR,                     //added by lzp
+	SYM_FOR,                    // added by lzp
 	SYM_RETURN,
 	SYM_EXIT,
-	SYM_SWITCH,                //added by lzp 17/12/15
+	SYM_SWITCH,					// added by lzp 17/12/15
 	SYM_CASE,
 	SYM_DEFAULT,
 	SYM_BREAK,
 	SYM_CONTINUE,
 	SYM_COLON,
-	SYM_GOTO
+	SYM_GOTO,
+	SYM_VOID,					// added by nanahka 17-12-18
+	SYM_INT
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype																						// merged by nanahka 17-12-15
@@ -186,7 +188,9 @@ char* err_msg[] =
 /* 57 */    "procedure can not be in a const factor.",
 /* 58 */    "label must be followed by a statement.",
 /* 59 */    "Undeclared label.",
-/* 60 */	"Procedure can not be in const expression."						// added by nanahka 17-12-16
+/* 60 */	"Procedure can not be in const expression.",					// added by nanahka 17-12-16
+/* 61 */	"'void' or 'int' needed before a procedure declared.",			// 61-62 added by nanahka 17-12-18
+/* 62 */	"There must be an identifier to follow 'void' or 'int'."
 };
 
 typedef struct type comtyp;
@@ -219,10 +223,11 @@ instruction code[CXMAX];
 char* word[NRW + 1] =
 {
 	"", /* place holder */
-	"begin", "const", "do", "end","if",												// deleted by nanahka 17-11-20
+	"begin", "const", "do", "end","if",
 	"odd", "procedure", "then", "var", "while",
 	"else", "for", "return", "exit", "switch",
-	"case", "default", "break", "continue", "goto"                                                             //added by lzp 17/12/16
+	"case", "default", "break", "continue", "goto",                                            //added by lzp 17/12/16
+	"void", "int"																				// added by nanahka 17-12-18
 };
 
 int wsym[NRW + 1] =
@@ -230,7 +235,8 @@ int wsym[NRW + 1] =
 	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
 	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
 	SYM_ELSE, SYM_FOR, SYM_RETURN, SYM_EXIT, SYM_SWITCH, SYM_CASE,
-	SYM_DEFAULT, SYM_BREAK, SYM_CONTINUE, SYM_GOTO                                                      //added by lzp 17/12/16
+	SYM_DEFAULT, SYM_BREAK, SYM_CONTINUE, SYM_GOTO,                                             // added by lzp 17/12/16
+	SYM_VOID, SYM_INT																			// added by nanaha 17-12-18
 };
 
 int ssym[NSYM + 1] =
