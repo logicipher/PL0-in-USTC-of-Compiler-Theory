@@ -143,7 +143,8 @@ void getsym(void)
 		}
 		else
 		{
-			error(37); // '=' expected.				// modified by nanhka 17-11-13
+			sym = SYM_COLON;  //:                   modified by lzp 17/12/19
+			//error(37); // '=' expected.				// modified by nanhka 17-11-13
 		}
 	}
 	else if (ch == '>')
@@ -471,6 +472,7 @@ void constdeclaration()
 				enter(ID_CONSTANT);
 				getsym();
 			}
+			/*																					delete by lzp 17/12/19
 			else if (sym == SYM_COLON)                                               			//added by lzp 17/12/16
 			{
 				getsym();
@@ -481,6 +483,7 @@ void constdeclaration()
 				enter(ID_LABEL);
 				getsym();
 			}
+			*/
 			else
 			{
 				error(2); // There must be a number to follow '='.
@@ -1363,7 +1366,32 @@ void statement(symset ssys)
 {
 	int i, cx1, cx2, cx3, cx4;
 	symset set1, set;
-
+	if (sym == SYM_IDENTIFIER)                                                                     //added by lzp 17/12/19
+	{
+		int sym1 = sym;
+		int t = cc;
+		char c = ch;
+		getsym();
+		if (sym == SYM_COLON)
+		{//label
+			i = position(id, TABLE_BEGIN);
+			if (i == 0)
+			{
+				error(68);//id can't be used as a label  
+			}
+			else 
+			{
+				enter(ID_LABEL);
+			}
+			getsym();
+		}
+		else
+		{//not a label
+			sym = sym1;                     //back to id
+			cc = t;
+			ch = c;
+		}
+	}//if
 	if (sym == SYM_IDENTIFIER)
 	{
 		if (! (i = position(id, TABLE_BEGIN)))
