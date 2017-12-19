@@ -1,39 +1,38 @@
 #include <stdio.h>
-#include <malloc.h>																				// added by nanahka 17-11-26
+#include <malloc.h>
 
-#define TRUE	   1
-#define FALSE	   0
+#define TRUE	   		1																			// added by nanahka 17-11-26
+#define FALSE	   		0
 
-#define NRW        22     // number of reserved words
-#define TXMAX      500    // length of identifier table
-#define MAXNUMLEN  14     // maximum number of digits in numbers
-#define NSYM       14     // maximum number of symbols in array ssym and csym
-#define MAXIDLEN   10     // length of identifiers
-#define MAXARYDIM  10	  // maximum number of dimensions of an array							// added by nanahka 17-11-12
-#define MAXARYVOL  200	  // maximum volume of a dimension of an array							// added by nanahka 17-11-12
-#define MAXFUNPMT  10	  // maximum number of parameters of a procedure						// added by nanahka 17-11-20
+#define NRW        		25     // number of reserved words
+#define TXMAX      		500    // length of identifier table
+#define MAXNUMLEN  		14     // maximum number of digits in numbers
+#define NSYM       		14     // maximum number of symbols in array ssym and csym
+#define MAXIDLEN   		10     // length of identifiers
+#define MAXARYDIM  		10	   // maximum number of dimensions of an array							// added by nanahka 17-11-12
+#define MAXARYVOL  		200	   // maximum volume of a dimension of an array							// added by nanahka 17-11-12
+#define MAXFUNPMT  		10	   // maximum number of parameters of a procedure						// added by nanahka 17-11-20
+#define MAXELIF			20	   // maximum number of elifs											// added by nanahka 17-12-19
 
-#define MAXADDRESS 32767  // maximum numerical constant											// modified by nanahka 17-11-20
-#define MAXLEVEL   32     // maximum depth of nesting block
-#define CXMAX      500    // size of code array
-//#define INITLIST   10	  // initial size of true/false lists									// added by nanahka 17-11-26
-//#define INCRELIST  5	  // increment of size of true/false lists
+#define MAXADDRESS 		32767  // maximum numerical constant										// modified by nanahka 17-11-20
+#define MAXLEVEL   		32     // maximum depth of nesting block
+#define CXMAX      		500    // size of code array
 
-#define MAXSYM     48     // maximum number of symbols
+#define MAXSYM     		51     // maximum number of symbols
 
-#define STACKSIZE  1000   // maximum storage
+#define STACKSIZE  		1000   // maximum storage
 
-#define CONST_EXPR 0	  // the expression is constant											// added by nanahka 17-11-14
-#define UNCONST_EXPR 1	  // the expression is not constant
+#define CONST_EXPR 		0	   // the expression is constant										// added by nanahka 17-11-14
+#define UNCONST_EXPR 	1	   // the expression is not constant
 
-#define TABLE_BEGIN 0	  // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
-#define MAX_CASE 20       //maxinum cases in switsh                              added by lzp 17/12/14
-#define INCREMENT 5       //increment preparing for more space if necessary
-#define MAX_CONTROL 50          //maxinum control statement
+#define TABLE_BEGIN 	0	   // the beginning index of the TABLE, used in position()				// added by nanahka 17-11-14
+#define MAX_CASE   		20     //maxinum cases in switsh                              				// added by lzp 17/12/14
+#define INCREMENT  		5      //increment preparing for more space if necessary
+#define MAX_CONTROL 	50     //maxinum control statement
 
 
-#define PMT_PROC   1	  // indicate that this name is a procedure and a parameter of a procedure	// added by nanahka 17-12-16
-#define NON_PMT_PROC 0	  // otherwise
+#define PMT_PROC   		1	   // indicate that this name is a procedure and a parameter of a procedure	// added by nanahka 17-12-16
+#define NON_PMT_PROC 	0	   // otherwise
 
 enum symtype
 {
@@ -61,6 +60,8 @@ enum symtype
 	SYM_BECOMES,
 	SYM_BEGIN,
 	SYM_END,
+	SYM_TRUE,					// added by nanahka 17-12-19
+	SYM_FALSE,
 	SYM_IF,
 	SYM_THEN,
 	SYM_WHILE,
@@ -73,6 +74,7 @@ enum symtype
 	SYM_AND,
 	SYM_AMPERSAND,				// added by nanahka 17-11-20
 	SYM_ELSE,
+	SYM_ELIF,					// added by nanahka 17-12-19
 	SYM_FOR,                    // added by lzp
 	SYM_RETURN,
 	SYM_EXIT,
@@ -89,30 +91,30 @@ enum symtype
 
 enum idtype																						// merged by nanahka 17-12-15
 {
-	ID_VOID, ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL                      //added by lzp 17/12/16
+	ID_VOID, ID_CONSTANT, ID_VARIABLE, ID_PROCEDURE, ID_ARRAY, ID_POINTER, ID_LABEL             //added by lzp 17/12/16
 };
 
 enum opcode
 {
 	LIT, OPR, LOD, LODI, LODS, LEA, STO, STOI, STOS,
-	CAL, CALS, INT, JMP, JPC, JND, JNDN, EXT, JET				// modified by nanahka 17-12-15
+	CAL, CALS, INT, JMP, JPC, JND, JNDN, RET, EXT, JET											// modified by nanahka 17-12-19
 };
 
 enum oprcode
 {
-	OPR_RET, OPR_NEG, OPR_ADD, OPR_MIN,
+	/* OPR_RET, */OPR_NEG, OPR_ADD, OPR_MIN,													// deleted by nanahka 17-12-19
 	OPR_MUL, OPR_DIV, OPR_ODD, OPR_EQU,
 	OPR_NEQ, OPR_LES, OPR_LEQ, OPR_GTR,
-	OPR_GEQ, OPR_NOT, OPR_AND, OPR_OR,                               // added by nanahka 17-11-26
-	OPR_RTN
+	OPR_GEQ, OPR_NOT, OPR_AND, OPR_OR,                               							// added by nanahka 17-11-26
+	OPR_ITOB																					// added by nanahka 17-12-19
 };
 
-enum environment                                           //added by lzp 17/12/16
+enum environment                                           										//added by lzp 17/12/16
 {
-	ENV_NULL, ENV_DO, ENV_WHILE, ENV_FOR, ENV_SWITCH                                               //four kind env:do-while,while,for,switch
+	ENV_NULL, ENV_DO, ENV_WHILE, ENV_FOR, ENV_SWITCH                    //four kind env:do-while,while,for,switch
 };
 
-enum control                                                        //added by lzp 17/12/16
+enum control                                                       								//added by lzp 17/12/16
 {
 	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet
 };
@@ -143,7 +145,7 @@ char* err_msg[] =
 /* 12 */    "Illegal assignment.",
 /* 13 */    "':=' expected.",
 /* 14 */    "There must be an identifier to follow the 'call'.",			// unused
-/* 15 */    "There must be an identifier to follow '&'.",										// merged by nanahka 17-12-15
+/* 15 */    "There must be an identifier to follow '&'.",		// merged by nanahka 17-12-15
 /* 16 */    "'then' expected.",
 /* 17 */    "'end' expected.",					// modified by nanahka 17-11-13
 /* 18 */    "'do' expected.",
@@ -175,7 +177,7 @@ char* err_msg[] =
 /* 44 */    "there must be a variable in 'for' statement.",
 /* 45 */    "you must return a constant.",
 /* 46 */    "no more exit can be added.",
-/* 47 */    "'else' expected.",
+/* 47 */    "'else' expected.",								// unused
 /* 48 */    "another '|' is expected.",
 /* 49 */     "'while' expected .",
 /* 50 */    "there must be 'begin' in switch statement.",                 //added by lzp 17/12/14
@@ -189,8 +191,13 @@ char* err_msg[] =
 /* 58 */    "label must be followed by a statement.",
 /* 59 */    "Undeclared label.",
 /* 60 */	"Procedure can not be in const expression.",					// added by nanahka 17-12-16
-/* 61 */	"'void' or 'int' needed before a procedure declared.",			// 61-62 added by nanahka 17-12-18
-/* 62 */	"There must be an identifier to follow 'void' or 'int'."
+/* 61 */	"'void' or 'int' needed before a procedure declared.",			// 61-64 added by nanahka 17-12-18
+/* 62 */	"There must be an identifier to follow 'void' or 'int'.",
+/* 63 */	"Void value not ignored as it ought to be.",
+/* 64 */	"Applying function calling operator on non-array.",
+/* 65 */	"Return a value in function returning void.",					// 65-67 added by nanahka 17-12-19
+/* 66 */	"Return void in function returning a value.",
+/* 67 */	"Too many elifs."
 };
 
 typedef struct type comtyp;
@@ -223,39 +230,40 @@ instruction code[CXMAX];
 char* word[NRW + 1] =
 {
 	"", /* place holder */
-	"begin", "const", "do", "end","if",
-	"odd", "procedure", "then", "var", "while",
-	"else", "for", "return", "exit", "switch",
-	"case", "default", "break", "continue", "goto",                                            //added by lzp 17/12/16
-	"void", "int"																				// added by nanahka 17-12-18
+	"begin", "const", "do", "end", "true", "false",
+	"if", "odd", "procedure", "then", "var", "while",
+	"else", "elif", "for", "return", "exit", "switch",
+	"case", "default", "break", "continue", "goto",
+	"void", "int"
 };
 
 int wsym[NRW + 1] =
 {
-	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,								// deleted by nanahka 17-11-20
-	SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN, SYM_VAR, SYM_WHILE,
-	SYM_ELSE, SYM_FOR, SYM_RETURN, SYM_EXIT, SYM_SWITCH, SYM_CASE,
-	SYM_DEFAULT, SYM_BREAK, SYM_CONTINUE, SYM_GOTO,                                             // added by lzp 17/12/16
-	SYM_VOID, SYM_INT																			// added by nanaha 17-12-18
+	SYM_NULL, SYM_BEGIN, /*SYM_CALL,*/ SYM_CONST, SYM_DO, SYM_END,
+	SYM_TRUE, SYM_FALSE, SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN,
+	SYM_VAR, SYM_WHILE, SYM_ELSE, SYM_ELIF, SYM_FOR, SYM_RETURN,
+	SYM_EXIT, SYM_SWITCH, SYM_CASE, SYM_DEFAULT, SYM_BREAK,
+	SYM_CONTINUE, SYM_GOTO, SYM_VOID, SYM_INT
 };
 
 int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON															// added by lzp 17/12/16
+	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!',':'						// added by nanahka 17-11-26
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!',':'
 };
 
-#define MAXINS   18																				// modified by lzp 17/12/16
+#define MAXINS   19
 char* mnemonic[MAXINS] =
 {
 	"LIT", "OPR", "LOD", "LODI", "LODIL", "LEA", "STO", "STOI", "STOIL",
-	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "EXT", "JET"                          	//added by lzp 17/12/16
+	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "RET",
+	"EXT", "JET"
 };
 
 struct type																						// added by nanahka 17-12-15
