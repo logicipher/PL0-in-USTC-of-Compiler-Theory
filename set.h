@@ -9,6 +9,7 @@ typedef struct snode
 
 symset phi, 														// added by nanahka 17-11-13
 	   blk_first_sys, decl_first_sys, stat_first_sys,
+	   pmt_first_sys,												// added by nanahka 17-12-18
 	   exp_first_sys, fac_first_sys,
 	   main_blk_follow_sys,
 	   relset;
