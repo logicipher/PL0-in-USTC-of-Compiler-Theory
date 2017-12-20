@@ -39,16 +39,29 @@ void getch(void)
 		ll = cc = 0;
 		printf("%5d  ", cx);
 		while ( (!feof(infile)) // added & modified by alex 01-02-09
-			    && ((ch = getc(infile)) != '\n'))
+				&& ((ch = getc(infile)) != '\n'))
 		{
 			printf("%c", ch);
-			line[++ll] = ch;
+			if ( (++ll) >= 80)																	// added by nanahka 17-12-20
+			{
+				printf("Fatal Error: Too many characters in a line.\n");
+				exit(EXIT_FAILURE);
+			}
+			line[ll] = ch;
 		} // while
 		printf("\n");
 		line[++ll] = ' ';
 	}
 	ch = line[++cc];
 } // getch
+
+//////////////////////////////////////////////////////////////////////
+void retreat()																					// added by nanahka 17-12-20
+{
+	cc = cc_p;
+	getch();
+	sym = sym_p;
+}
 
 //////////////////////////////////////////////////////////////////////
 // gets a symbol from input stream.
@@ -98,7 +111,8 @@ void getsym(void)
     }
     while (ch == ' ');
 
-
+	cc_p = cc - 1;																				// added by nanahka 17-12-20
+	sym_p = sym;
 	if (isalpha(ch) || ch == '_')																// added by nanahka 17-12-20
 	{ // symbol is a reserved word or an identifier.
 		k = 0;
@@ -143,7 +157,7 @@ void getsym(void)
 		}
 		else
 		{
-			error(37); // '=' expected.				// modified by nanhka 17-11-13
+			sym = SYM_COLON;  //:                  												// modified by lzp 17/12/19
 		}
 	}
 	else if (ch == '>')
@@ -468,29 +482,16 @@ void constdeclaration(symset ssys)
 			num = expression(ssys, CONST_EXPR);
 			ptr = NULL;																		// modified by nanahka 17-12-19
 			enter(ID_CONSTANT);
-			getsym();
-
-			if (sym == SYM_COLON)                                               			//added by lzp 17/12/16
-			{
-				getsym();
-				if (sym == SYM_VAR || sym == SYM_CONST || sym == SYM_PROCEDURE)
-				{
-					error(58);                                            //label mest be before a statement
-				}
-				enter(ID_LABEL);
-				getsym();
-			}
-			else
-			{
-				error(2); // There must be a number to follow '='.
-			}
 		}
 		else
 		{
 			error(3); // There must be an '=' to follow the identifier.
 		}
-	} else	error(4);
-	 // There must be an identifier to follow 'const', 'var', or 'procedure'.
+	}
+	else
+	{
+		error(4); // There must be an identifier to follow 'const', 'var', or 'procedure'.
+	}
 } // constdeclaration
 
 //////////////////////////////////////////////////////////////////////
@@ -715,8 +716,6 @@ int countindex(int i, symset ssys)
 //////////////////////////////////////////////////////////////////////
 int getarrayaddr(int i, symset ssys)
 {
-	symset set;
-
 	mask *mk = (mask*)&table[i];
 	if (sym != SYM_LSQUARE)
 	{
@@ -1392,6 +1391,27 @@ void statement(symset ssys)
 	int i, cx1, cx2, cx3, cx4;
 	symset set1, set;
 
+	if (sym == SYM_IDENTIFIER)                                                                     // added by lzp 17/12/19
+	{ // LABEL compels the grammar to be LL(2)
+		getsym();
+		if (sym == SYM_COLON)
+		{ // label
+			i = position(id, TABLE_BEGIN);
+			if (i != 0)
+			{
+				error(68);//id can't be used as a label
+			}
+			else
+			{
+				enter(ID_LABEL);
+			}
+			getsym();
+		}
+		else
+		{ // not a label
+			retreat();
+		}
+	} //if
 	if (sym == SYM_IDENTIFIER)
 	{
 		getsym();
@@ -1480,7 +1500,7 @@ void statement(symset ssys)
 		i = 0;
 		getsym();
 		set = uniteset(ssys, stat_first_sys);
-		setinsert_mul(set, SYM_THEN, SYM_PERIOD, SYM_ELIF, SYM_ELSE, SYM_NULL);								// modified by nanahka 17-12-19
+		setinsert_mul(set, SYM_THEN, SYM_SEMICOLON, SYM_ELIF, SYM_ELSE, SYM_NULL);								// modified by nanahka 17-12-19
 		or_condition(set, UNCONST_EXPR);
 		if (sym == SYM_THEN)
 		{
@@ -1497,24 +1517,24 @@ void statement(symset ssys)
 		cx_list[i] = cx;
 		gen(JMP,0,0);
 		code[cx1].a = cx;
-		if (sym != SYM_PERIOD && inset(sym, ssys))
-		{
-			code[cx_list[0]].a = cx;
-			return;
-		}
-		else if (sym == SYM_PERIOD)
+		if (sym == SYM_SEMICOLON)
 		{
 			getsym();
 		}
-		else
+		else if (sym == SYM_ELIF || sym == SYM_ELSE)
 		{
-			error(9); // '.' expected.
+			error(26); // Missing ';'.
 		}
-		set = createset(SYM_ELIF, SYM_ELSE, SYM_NULL);
-		set1 = uniteset(ssys, set);
-		test(set, set1, 68); // 'elif' or 'else' expected.
-		destroyset(set);
-		destroyset(set1);
+		if (sym != SYM_ELIF && sym != SYM_ELSE)
+		{
+			if (sym_p == SYM_SEMICOLON)
+			{
+				retreat();
+			}
+			code[cx_list[0]].a = cx;
+			return;
+		}
+		int bRet = FALSE; // mark if retreating process is necessary
 		while (sym == SYM_ELIF)
 		{
 			getsym();
@@ -1542,13 +1562,14 @@ void statement(symset ssys)
 			cx_list[i] = cx;
 			gen(JMP, 0, 0);
 			code[cx1].a = cx;
-			if (sym == SYM_PERIOD)
+			if (sym == SYM_SEMICOLON)
 			{
 				getsym();
+				bRet = TRUE; // if sym != SYM_ELIF / SYM_ELSE, retreat
 			}
 			else if (sym == SYM_ELIF || sym == SYM_ELSE)
 			{
-				error(9); // '.' expected.
+				error(26); // Missing ';'.
 			}
 			else
 			{
@@ -1558,12 +1579,17 @@ void statement(symset ssys)
 		if(sym == SYM_ELSE)
 		{
 			getsym();
+			bRet = FALSE; // sym == SYM_ELSE, not retreat
 			statement(ssys);
 		}
 		++i;
 		while (i--)
 		{
 			code[cx_list[i]].a = cx;
+		}
+		if (bRet)
+		{
+			retreat();
 		}
 	}
 	else if (sym == SYM_BEGIN)
