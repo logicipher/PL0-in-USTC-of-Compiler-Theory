@@ -132,7 +132,7 @@ char* err_msg[] =
 {
 /*  0 */    "",
 /*  1 */    "Found ':=' when expecting '='.",
-/*  2 */    "There must be a number to follow '='.",
+/*  2 */    "There must be a number to follow '='.",						// unused
 /*  3 */    "There must be an '=' to follow the identifier.",
 /*  4 */    "There must be an identifier to follow 'const', 'var', or 'procedure'.",
 /*  5 */    "Missing ',' or ';'.",
@@ -221,10 +221,12 @@ int  tx_b = 0;	 // index of the beginning of current block in TABLE
 int  *list[2] = {}; // list[0]: f_list, list[1]: t_list
 //int  *t_list;	 // array of code indices of JPCs to the TRUE address of a logical expr
 //int  *f_list;	 // array of code indices of JPCs to the FALSE address of a logical expr
+int  cc_p;		 // cc of the first ch of current sym											// added by nanahka 17-12-20
+int  sym_p;		 // sym before current sym was read
 
-int env;          //mark the type of environment where break,continue is                       //added by lzp 17/12/16
-int head;
-int tail;         //mark beginning and end of circulation
+int  env;        // mark the type of environment where break,continue is                       //added by lzp 17/12/16
+int  head;
+int  tail;       // mark beginning and end of circulation
 
 char line[80];
 
