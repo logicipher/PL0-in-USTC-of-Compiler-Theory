@@ -7,7 +7,7 @@
 #define NRW        		25     // number of reserved words
 #define TXMAX      		500    // length of identifier table
 #define MAXNUMLEN  		14     // maximum number of digits in numbers
-#define NSYM       		13     // maximum number of symbols in array ssym and csym
+#define NSYM       		14     // maximum number of symbols in array ssym and csym
 #define MAXIDLEN   		10     // length of identifiers
 #define MAXARYDIM  		10	   // maximum number of dimensions of an array							// added by nanahka 17-11-12
 #define MAXARYVOL  		200	   // maximum volume of a dimension of an array							// added by nanahka 17-11-12
@@ -194,11 +194,13 @@ char* err_msg[] =
 /* 61 */	"'void' or 'int' needed before a procedure declared.",			// 61-64 added by nanahka 17-12-18
 /* 62 */	"There must be an identifier to follow 'void' or 'int'.",
 /* 63 */	"Void value not ignored as it ought to be.",
-/* 64 */	"Applying function calling operator on non-array.",
-/* 65 */	"Return a value in function returning void.",					// 65-67 added by nanahka 17-12-19
+/* 64 */	"Applying function calling operator on non-function.",
+/* 65 */	"Return a value in function returning void.",					// 65-68 added by nanahka 17-12-19
 /* 66 */	"Return void in function returning a value.",
 /* 67 */	"Too many elifs.",
-/* 68 */    "id can't be used as a label."
+/* 68 */	"'elif' or 'else' expected.",
+/* 69 */	"Assigning non-array type to an array.",						// 69-70 added by nanahka 17-12-20
+/* 70 */	"Assigning non-function type to a function."
 };
 
 typedef struct type comtyp;
@@ -251,18 +253,18 @@ int ssym[NSYM + 1] =
 {
 	SYM_NULL, SYM_PLUS, SYM_MINUS, SYM_TIMES, SYM_SLASH,
 	SYM_LPAREN, SYM_RPAREN, SYM_EQU, SYM_COMMA, SYM_PERIOD, SYM_SEMICOLON,
-	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT
+	SYM_LSQUARE, SYM_RSQUARE, SYM_NOT, SYM_COLON
 };
 
 char csym[NSYM + 1] =
 {
-	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!'
+	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!',':'
 };
 
 #define MAXINS   19
 char* mnemonic[MAXINS] =
 {
-	"LIT", "OPR", "LOD", "LODI", "LODIL", "LEA", "STO", "STOI", "STOIL",
+	"LIT", "OPR", "LOD", "LODI", "LODS", "LEA", "STO", "STOI", "STOS",
 	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "RET",
 	"EXT", "JET"
 };
