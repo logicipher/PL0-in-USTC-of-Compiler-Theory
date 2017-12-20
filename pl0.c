@@ -1399,7 +1399,7 @@ void statement(symset ssys)
 			i = position(id, TABLE_BEGIN);
 			if (i != 0)
 			{
-				error(68);//id can't be used as a label
+				error(71); // id can't be used as a label
 			}
 			else
 			{
@@ -1494,13 +1494,13 @@ void statement(symset ssys)
 			}
 		} // if
 	}
-	else if (sym == SYM_IF)
+	else if (sym == SYM_IF)																		// modified by nanahka 17-12-20
 	{ // if statement
 		int cx_list[MAXELIF + 1];
 		i = 0;
 		getsym();
 		set = uniteset(ssys, stat_first_sys);
-		setinsert_mul(set, SYM_THEN, SYM_SEMICOLON, SYM_ELIF, SYM_ELSE, SYM_NULL);								// modified by nanahka 17-12-19
+		setinsert_mul(set, SYM_THEN, SYM_SEMICOLON, SYM_ELIF, SYM_ELSE, SYM_NULL);
 		or_condition(set, UNCONST_EXPR);
 		if (sym == SYM_THEN)
 		{
