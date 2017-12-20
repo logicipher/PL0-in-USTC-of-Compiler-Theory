@@ -202,6 +202,8 @@ char* err_msg[] =
 /* 69 */	"Assigning non-array type to an array.",						// 69-70 added by nanahka 17-12-20
 /* 70 */	"Assigning non-function type to a function.",
 /* 71 */    "id can't be used as a label."									// added by lzp 17-12-19
+/* 72 */    "wrong use for break.",
+/* 73 */    "wrong use for continue."
 };
 
 typedef struct type comtyp;
@@ -225,7 +227,8 @@ int  *list[2] = {}; // list[0]: f_list, list[1]: t_list
 int  cc_p;		 // cc of the first ch of current sym											// added by nanahka 17-12-20
 int  sym_p;		 // sym before current sym was read
 
-int  env;        // mark the type of environment where break,continue is                       //added by lzp 17/12/16
+int  env = ENV_NULL;        // mark the type of environment where break,continue is                       //added by lzp 17/12/16
+int kd;         //kind,circulation or switch
 int  head;
 int  tail;       // mark beginning and end of circulation
 
@@ -316,6 +319,14 @@ typedef struct
 col cltab[MAX_CONTROL];             //max depth of circulation
 int cltop = 0;                      //top of cltab
 int count = 0;                   //count num of break and continue
+
+typedef struct
+{
+	int d;//index of label
+	int c;
+}go;
+go gototab[10];
+int tx_l = 0;
 
 FILE* infile;
 

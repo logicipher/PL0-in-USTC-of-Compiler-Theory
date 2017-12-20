@@ -1388,7 +1388,7 @@ int or_condition(symset ssys, int CONST_CHECK)
 //////////////////////////////////////////////////////////////////////
 void statement(symset ssys)
 {
-	int i, cx1, cx2, cx3, cx4;
+	int i, j, cx1, cx2, cx3, cx4;
 	symset set1, set;
 
 	if (sym == SYM_IDENTIFIER)                                                                     // added by lzp 17/12/19
@@ -1397,13 +1397,24 @@ void statement(symset ssys)
 		if (sym == SYM_COLON)
 		{ // label
 			i = position(id, TABLE_BEGIN);
-			if (i != 0)
-			{
-				error(71); // id can't be used as a label
-			}
-			else
+			if (i == 0)
 			{
 				enter(ID_LABEL);
+			}
+			else if (table[i].kind == ID_LABEL)
+			{
+				table[i].value = cx;
+				for (j = 0; j < tx_l; j++)
+				{
+					if (i = gototab[j].d == i)
+					{
+						code[gototab[j].c].a = cx;
+					}
+				}
+			}
+			else 
+			{
+				error(71); // id can't be used as a label
 			}
 			getsym();
 		}
@@ -1665,6 +1676,14 @@ void statement(symset ssys)
 		getsym();
 		cx1 = cx;
 		statement(ssys);
+		if (sym != SYM_SEMICOLON)                                                                    //modified by lzp 17/12/20
+		{
+			error(26);//missing ';'
+		}
+		else
+		{
+			getsym();
+		}
 		if (sym != SYM_WHILE)
 		{
 			error(49);                 //missing 'while' in do-while
@@ -1688,14 +1707,6 @@ void statement(symset ssys)
 		else
 		{
 			error(22);            //missing ')'
-		}
-		if (sym == SYM_SEMICOLON)
-		{
-			getsym();
-		}
-		else
-		{
-			error(26);            //missing ';'
 		}
 		cx2 = cx;
 		gen(JPC, 0, 0);
@@ -1721,6 +1732,7 @@ void statement(symset ssys)
 	else if (sym == SYM_BREAK)                                									//added by lzp 17/12/16
 	{
 		getsym();
+		/*
 		if (sym != SYM_SEMICOLON)
 		{
 			error(26);                                        //missing ';'
@@ -1729,21 +1741,27 @@ void statement(symset ssys)
 		{
 			getsym();
 		}
-		if (env == ENV_SWITCH)
+		*/
+		if (kd == ENV_SWITCH)
 		{
 			gen(JMP, 0, 0);
 		}
-		else
+		else if(env==ENV_FOR||env==ENV_WHILE||env==ENV_DO)
 		{
 			count++;
 			cltab[cltop].ty = CON_BREAK;                     //store information in the stack
 			cltab[cltop++].c = cx;
 			gen(JMP, 0, 0);
 		}
+		else
+		{
+			error(72);//wrong use for break
+		}
 	}
 	else if (sym == SYM_CONTINUE)                              									//added by lzp 17/12/16
 	{
 		getsym();
+		/*
 		if (sym != SYM_SEMICOLON)
 		{
 			error(26);                                        //missing ';'
@@ -1752,6 +1770,7 @@ void statement(symset ssys)
 		{
 			getsym();
 		}
+		*/
 		if (env == ENV_FOR || env == ENV_WHILE)
 		{
 			gen(JMP, 0, head);                                 //directly jump to the head
@@ -1763,6 +1782,10 @@ void statement(symset ssys)
 			cltab[cltop++].c = cx;
 			gen(JMP, 0, 0);
 		}
+		else
+		{
+			error(73);//wrong use for continue
+		}
 	}
 	else if (sym == SYM_GOTO)                                   								//added by lzp 17/12/16
 	{
@@ -1770,29 +1793,22 @@ void statement(symset ssys)
 		getsym();
 		if ( (i = position(id, TABLE_BEGIN)) == 0)
 		{
-			error(59); // Undeclared label.
-			getsym();
+			enter(ID_LABEL);
+			gototab[tx_l].d = dx;
+			gototab[tx_l++].c = cx;
+			gen(JMP, 0, 0);
 		}
 		else
 		{
-			getsym();
+			gen(JMP, 0, table[i].value);
 		}
-		if (sym != SYM_SEMICOLON)
-		{
-			error(26);                                         //missing ';'
-		}
-		else
-		{
-			getsym();
-		}
-		gen(JMP, 0, table[i].value);                        //junp instruction
+		getsym();
 	}
 	else if (sym == SYM_SWITCH)                                         						//modified by lzp 17/12/16
 	{
-		cltab[cltop++].ty = env;
-		env = ENV_SWITCH;
+		kd = ENV_SWITCH;
 		getsym();
-		if (sym != SYM_RPAREN)
+		if (sym != SYM_LPAREN)
 		{
 			error(43);           //missing '('
 		}//if
@@ -1819,7 +1835,7 @@ void statement(symset ssys)
 		{
 			getsym();
 		}//else
-		if ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))
+		if ((sym != SYM_CASE) && (sym != SYM_DEFAULT) && (sym != SYM_END))
 		{
 			error(51);              //missing 'case','end' or 'default'
 		}//if
@@ -1827,18 +1843,25 @@ void statement(symset ssys)
 		int de_break;         //mark whether there is 'break' after 'default'
 		int cx_br;
 		int num_case = 0;         //count num of case
+		int de_flag = 0;           //mark whether default exists
+		if (tx_c == 0)
+		{
+			switchtab = (casetab *)malloc(sizeof(casetab)*MAX_CASE);
+		}
 		cx1 = cx;
 		gen(JMP, 0, 0);            //goto test
 		while (sym != SYM_END)
 		{
-			num_case++;
-			if (tx_c == maxcase)
+			tmp = sym;                                     //store the keyword 'case' or 'default'
+			getsym();
+			if (tx_c == maxcase-1)
 			{
 				switchtab = (casetab *)realloc(switchtab, sizeof(casetab)*(maxcase + INCREMENT));
 				maxcase += INCREMENT;
 			}//if         //prepare for more case
-			tmp = sym;                                     //store the keyword 'case' or 'default'
-			if (sym != SYM_DEFAULT) {
+			
+			if (tmp != SYM_DEFAULT) {
+				num_case++;
 				set = uniteset(ssys, stat_first_sys);
 				setinsert(set, SYM_COLON);
 				switchtab[tx_c].t = expression(set, CONST_EXPR);
@@ -1858,9 +1881,15 @@ void statement(symset ssys)
 			}//if
 			else
 			{
+				de_flag = TRUE;
 				cx2 = cx;
 			}//else
-			while ((sym != SYM_CASE) || (sym != SYM_DEFAULT) || (sym != SYM_END))       //inside case,default
+			if((sym == SYM_CASE) && (sym == SYM_DEFAULT) && (sym == SYM_END))
+			{
+				tx_c++;                              //case that has no statment
+				continue;
+			}
+			while ((sym != SYM_CASE) && (sym != SYM_DEFAULT) && (sym != SYM_END))       //inside case,default
 			{
 				if (sym == SYM_BREAK)
 				{
@@ -1879,6 +1908,14 @@ void statement(symset ssys)
 				setinsert_mul(set, SYM_CASE, SYM_END, SYM_NULL);
 				statement(set);
 				destroyset(set);
+				if (sym != SYM_SEMICOLON)
+				{
+					error(26);//missing ';'
+				}
+				else
+				{
+					getsym();
+				}
 			}//while2
 		}//while1
 		cx3 = cx;
@@ -1889,7 +1926,10 @@ void statement(symset ssys)
 		{
 			gen(JET, switchtab[i].t, switchtab[i].c);
 		}
-		gen(JMP, 0, cx2);                                           //default ,at the end
+		if(de_flag)
+		{
+		   gen(JMP, 0, cx2); 
+		}                                          //default ,at the end
 		for (i = tx_c - num_case; i < tx_c; i++)                      //backpatch for break
 		{
 			if (switchtab[i].flag == TRUE)
@@ -1903,8 +1943,11 @@ void statement(symset ssys)
 		}
 		code[cx3].a = cx;                                 //if ther is no break ,we can jump out of switch
 		tx_c -= num_case;                                //delete case of inside switch stat
-		cltop--;
-		env = cltab[cltop].ty;
+		if (tx_c == 0)
+		{
+			kd = ENV_NULL; //quit switch
+			free(switchtab);
+		}
 	}//else if
 	else if (sym == SYM_FOR)
 	{ //for statement
@@ -1913,21 +1956,39 @@ void statement(symset ssys)
 		env = ENV_FOR;
 		getsym();
 		if (sym != SYM_LPAREN)
+		{
 			error(43);  //missing '('
-		getsym();
+		}
+		else
+		{
+			getsym();
+		}
 		if ((i = position(id, TABLE_BEGIN)) == 0)
 			error(11);           //id not declared
 		if (table[i].kind != ID_VARIABLE)
 			error(44);           //it must be a variable
 		set = expandset(ssys, SYM_SEMICOLON, SYM_IDENTIFIER, SYM_NULL);
-		expression(set, UNCONST_EXPR);
+		statement(set);
 		if (sym != SYM_SEMICOLON)
+		{
 			error(10);            //';' expected
-		getsym();
+		}
+		else
+		{
+			getsym();
+		}
 		cx1 = cx;
 		                                       //modified by lzp 17/12/16
 		or_condition(set, UNCONST_EXPR);          //condition
 		destroyset(set);
+		if(sym!=SYM_SEMICOLON)
+		{
+			error(10);//missing ';'
+		}
+		else
+		{
+			getsym();
+		}
 		cx2 = cx;
 		gen(JPC, 0, 0);
 		cx3 = cx;
@@ -1940,8 +2001,16 @@ void statement(symset ssys)
 		setinsert(set, SYM_RPAREN);
 		cx4 = cx;
 		head = cx;
-		expression(set, UNCONST_EXPR);        //change cycle var
+		statement(set);        //change cycle var
 		destroyset(set);
+		if (sym != SYM_RPAREN)
+		{
+			error(22);//missing ')'
+		}
+		else
+		{
+			getsym();
+		}
 		gen(JMP, 0, cx1);
 		code[cx3].a = cx;
 		statement(ssys);       //body of 'for'
@@ -1995,20 +2064,34 @@ void statement(symset ssys)
 	{
 		getsym();
 		if (sym != SYM_LPAREN)
+		{
 			error(43); // '(' is needed
-		getsym();
+		}
+		else
+		{
+			getsym();
+		}
 		i = position(id, TABLE_BEGIN);
 		if (table[i].kind != ID_CONSTANT)
 			error(45); // 'exit' have to return a constant
-		getsym();
 		if (sym != SYM_LPAREN)
+		{
 			error(22); // missing ')'
-		getsym();
+		}
+		else
+		{
+			getsym();
+		}
 		if (sym != SYM_SEMICOLON)
+		{
 			error(10); // missing ';'
+		}
+		else
+		{
+			getsym();
+		}
 		gen(LIT, 0, table[i].value);
 		gen(EXT, 0, 0);
-		getsym();
 	}
 
 	test(ssys, ssys, 19);																		// modified by nanahka 17-11-20
@@ -2229,7 +2312,8 @@ void block(symset ssys)	// ssys is the Synchronizing SYmbol Set of current block
 					ptr->ptr[0].k = NON_PMT_PROC;
 					ptr->ptr[1].k = rt;
 					ptr->k = n;
-					for (int i = 0; i < n; ++i)
+					int i;
+					for ( i = 0; i < n; ++i)
 					{ // allocate the parameters in reverse order and set ptr in forward order
 						mask *mk = (mask*)&table[tx - i];
 						mk->address = -1 - sum_alloc;	// every parameter's address is the last word of the storage occupied
@@ -2530,7 +2614,7 @@ int main ()
 	decl_first_sys 		= createset(SYM_CONST, SYM_VAR, SYM_PROCEDURE, SYM_NULL);
 	stat_first_sys 		= createset(SYM_IDENTIFIER, SYM_BEGIN, SYM_IF, SYM_WHILE, SYM_FOR,		// modified by nanahka 17-12-19
 										SYM_DO, SYM_BREAK, SYM_CONTINUE, SYM_GOTO, SYM_SWITCH,
-										SYM_RETURN, SYM_NULL);
+										SYM_RETURN,SYM_EXIT, SYM_NULL);
 	blk_first_sys 		= uniteset(decl_first_sys, stat_first_sys);
 	pmt_first_sys		= createset(SYM_IDENTIFIER, SYM_AMPERSAND, SYM_VOID, SYM_INT, SYM_NULL);	// added by nanahka 17-12-18
 	fac_first_sys 		= createset(SYM_IDENTIFIER, SYM_NUMBER, SYM_LPAREN,
@@ -2569,8 +2653,7 @@ int main ()
 	else
 		printf("There are %d error(s) in PL/0 program.\n", err);
 	listcode(0, cx);
-
-	for (int i = 0; i < TXMAX; ++i)																// modified by nanahka 17-12-19
+	for (i = 0; i < TXMAX; ++i)																// modified by nanahka 17-12-19
 	{
 		free_ptr(table[i].ptr);
 	}
