@@ -118,7 +118,7 @@ enum environment                                           										//added by 
 
 enum control                                                       								//added by lzp 17/12/16
 {
-	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statemnet
+	CON_NULL, CON_BREAK, CON_CONTINUE                                   //mark the type of control statement
 };
 
 
@@ -176,7 +176,7 @@ char* err_msg[] =
 /* 41 */	"Non-array type/incorrect indices.",	// modified by nanahka 17-12-16
 /* 42 */	"Too few parameters in a procedure.",
 /* 43 */    "'(' expected.",
-/* 44 */    "there must be a variable in 'for' statement.",
+/* 44 */    "There must be a variable in 'for' statement.",
 /* 45 */    "you must return a constant.",
 /* 46 */    "no more exit can be added.",
 /* 47 */    "'else' expected.",								// unused
@@ -189,7 +189,7 @@ char* err_msg[] =
 /* 54 */	"Incorrect type as an lvalue expression.",
 /* 55 */	"The symbol can not be as the beginning of a function call.",
 /* 56 */	"Non-procedure type/incorrect parameter types.",
-/* 57 */    "procedure can not be in a const factor.",
+/* 57 */    "procedure can not be in a const factor.",		// unused
 /* 58 */    "label must be followed by a statement.",
 /* 59 */    "Undeclared label.",
 /* 60 */	"Procedure can not be in const expression.",					// added by nanahka 17-12-16
