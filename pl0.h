@@ -4,10 +4,10 @@
 #define TRUE	   		1																			// added by nanahka 17-11-26
 #define FALSE	   		0
 
-#define NRW        		25     // number of reserved words
+#define NRW        		26     // number of reserved words
 #define TXMAX      		500    // length of identifier table
 #define MAXNUMLEN  		14     // maximum number of digits in numbers
-#define NSYM       		13     // maximum number of symbols in array ssym and csym
+#define NSYM       		14     // maximum number of symbols in array ssym and csym
 #define MAXIDLEN   		10     // length of identifiers
 #define MAXARYDIM  		10	   // maximum number of dimensions of an array							// added by nanahka 17-11-12
 #define MAXARYVOL  		200	   // maximum volume of a dimension of an array							// added by nanahka 17-11-12
@@ -18,7 +18,7 @@
 #define MAXLEVEL   		32     // maximum depth of nesting block
 #define CXMAX      		500    // size of code array
 
-#define MAXSYM     		51     // maximum number of symbols
+#define MAXSYM     		52     // maximum number of symbols
 
 #define STACKSIZE  		1000   // maximum storage
 
@@ -86,7 +86,9 @@ enum symtype
 	SYM_COLON,
 	SYM_GOTO,
 	SYM_VOID,					// added by nanahka 17-12-18
-	SYM_INT
+	SYM_INT,
+
+	SYM_PRINT					// added by nanahka 17-12-20
 };	// total number = MACRO MAXSYM, maintenance needed!!!
 
 enum idtype																						// merged by nanahka 17-12-15
@@ -97,7 +99,7 @@ enum idtype																						// merged by nanahka 17-12-15
 enum opcode
 {
 	LIT, OPR, LOD, LODI, LODS, LEA, STO, STOI, STOS,
-	CAL, CALS, INT, JMP, JPC, JND, JNDN, RET, EXT, JET											// modified by nanahka 17-12-19
+	CAL, CALS, INT, JMP, JPC, JND, JNDN, RET, EXT, JET, PRNT									// modified by nanahka 17-12-19
 };
 
 enum oprcode
@@ -202,8 +204,6 @@ char* err_msg[] =
 /* 69 */	"Assigning non-array type to an array.",						// 69-70 added by nanahka 17-12-20
 /* 70 */	"Assigning non-function type to a function.",
 /* 71 */    "id can't be used as a label."									// added by lzp 17-12-19
-/* 72 */    "wrong use for break.",
-/* 73 */    "wrong use for continue."
 };
 
 typedef struct type comtyp;
@@ -227,8 +227,7 @@ int  *list[2] = {}; // list[0]: f_list, list[1]: t_list
 int  cc_p;		 // cc of the first ch of current sym											// added by nanahka 17-12-20
 int  sym_p;		 // sym before current sym was read
 
-int  env = ENV_NULL;        // mark the type of environment where break,continue is                       //added by lzp 17/12/16
-int kd;         //kind,circulation or switch
+int  env;        // mark the type of environment where break,continue is                       //added by lzp 17/12/16
 int  head;
 int  tail;       // mark beginning and end of circulation
 
@@ -243,7 +242,7 @@ char* word[NRW + 1] =
 	"if", "odd", "procedure", "then", "var", "while",
 	"else", "elif", "for", "return", "exit", "switch",
 	"case", "default", "break", "continue", "goto",
-	"void", "int"
+	"void", "int", "print"
 };
 
 int wsym[NRW + 1] =
@@ -252,7 +251,7 @@ int wsym[NRW + 1] =
 	SYM_TRUE, SYM_FALSE, SYM_IF, SYM_ODD, SYM_PROCEDURE, SYM_THEN,
 	SYM_VAR, SYM_WHILE, SYM_ELSE, SYM_ELIF, SYM_FOR, SYM_RETURN,
 	SYM_EXIT, SYM_SWITCH, SYM_CASE, SYM_DEFAULT, SYM_BREAK,
-	SYM_CONTINUE, SYM_GOTO, SYM_VOID, SYM_INT
+	SYM_CONTINUE, SYM_GOTO, SYM_VOID, SYM_INT, SYM_PRINT
 };
 
 int ssym[NSYM + 1] =
@@ -267,12 +266,12 @@ char csym[NSYM + 1] =
 	' ', '+', '-', '*', '/', '(', ')', '=', ',', '.', ';', '[', ']', '!'
 };
 
-#define MAXINS   19
+#define MAXINS   20
 char* mnemonic[MAXINS] =
 {
 	"LIT", "OPR", "LOD", "LODI", "LODS", "LEA", "STO", "STOI", "STOS",
 	"CAL", "CALS", "INT", "JMP", "JPC", "JND", "JNDN", "RET",
-	"EXT", "JET"
+	"EXT", "JET", "PRNT"
 };
 
 struct type																						// added by nanahka 17-12-15
@@ -319,14 +318,6 @@ typedef struct
 col cltab[MAX_CONTROL];             //max depth of circulation
 int cltop = 0;                      //top of cltab
 int count = 0;                   //count num of break and continue
-
-typedef struct
-{
-	int d;//index of label
-	int c;
-}go;
-go gototab[10];
-int tx_l = 0;
 
 FILE* infile;
 
